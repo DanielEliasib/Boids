@@ -13,6 +13,6 @@ namespace AL.BoidSystem
         public float ChangeRate { get; set; }
         public float SeparationRadius { get; set; }
         public float CohesionRadius { get; set; }
-
+        public float NoiseMagnitude { get; set; }
     }
 }

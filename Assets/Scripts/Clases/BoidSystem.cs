@@ -34,8 +34,22 @@ namespace AL.BoidSystem
         //! Global JOB Handles
         JobHandle updateHandle;
 
+        //! Baking Data
+        private ComputeShader _DataCopyShader;
+        private ComputeBuffer _PointBuffer;
+        private ComputeBuffer _DirecBuffer;
+        private int _KernelIndex;
+        private string _KernelName = "CopyKernel";
+
+        private RenderTexture _InternalPointTexture;
+        private RenderTexture _InternalDirecTexture;
+
+        private bool _CopyInitialize;
+
         public BoidSystem(int nOfBoids, SimulationArea simArea, ref BoidSystemOptions systemOptions)
         {
+            _CopyInitialize = false;
+
             _SimArea = simArea;
 
             _SystemOptions = systemOptions;
@@ -88,7 +102,7 @@ namespace AL.BoidSystem
                 _Dir = _Directions,
                 _Vel = _Velocities,
                 _Rand = new Unity.Mathematics.Random(randSeed),
-                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z),
+                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z)*0.1f,
                 _VelLimit = _SystemOptions.VelocityLimits
             };
 
@@ -105,8 +119,7 @@ namespace AL.BoidSystem
             {
                 _Dir = _Directions,
                 _Vel = _Velocities,
-                minVel = _SystemOptions.VelocityLimits.x,
-                maxVel = _SystemOptions.VelocityLimits.y,
+                _SystemOptions = _SystemOptions,
                 rand = new Unity.Mathematics.Random(randSeed*randSeed)
             };
 
@@ -163,11 +176,9 @@ namespace AL.BoidSystem
             _FlockJOB._OldDir = oldDir;
             _FlockJOB._OldVel = oldVel;
             _FlockJOB._GridToBoidsMap = _GridToBoidsMap;
-            _FlockJOB.deltaTime = deltaTime;
-            _FlockJOB.changeRate = _SystemOptions.ChangeRate;
-            _FlockJOB.separationRad = _SystemOptions.SeparationRadius;
-            _FlockJOB.cohesionRad = _SystemOptions.CohesionRadius;
             _FlockJOB._RayCastHits = _ObstacleHits;
+            _FlockJOB.deltaTime = deltaTime;
+            _FlockJOB._SystemOptions = _SystemOptions;
             _FlockJOB.rand = new Unity.Mathematics.Random((uint)UnityEngine.Random.Range(1,15478));
 
             // Scheduling
@@ -200,15 +211,76 @@ namespace AL.BoidSystem
             Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
         }
 
+        public void InitializeCopyShader(ref RenderTexture positionMap, ref RenderTexture directionMap)
+        {
+            _InternalPointTexture = positionMap;
+            _InternalDirecTexture = directionMap;
+
+            _DataCopyShader = (ComputeShader)Resources.Load("CopyArrayToTexture");
+
+            Debug.Log(_DataCopyShader);
+
+            _KernelIndex = _DataCopyShader.FindKernel(_KernelName);
+
+            _DataCopyShader.SetTexture(_KernelIndex, "_PointResult", _InternalPointTexture);
+            _DataCopyShader.SetTexture(_KernelIndex, "_DirecResult", _InternalDirecTexture);
+
+            _DataCopyShader.SetInt("width", _InternalPointTexture.width);
+
+            _DataCopyShader.SetFloat("maxValue", half.MaxValue);
+
+            _PointBuffer = new ComputeBuffer(1, 3 * sizeof(float));
+            _DirecBuffer = new ComputeBuffer(1, 3 * sizeof(float));
+
+            _CopyInitialize = true;
+        }
+
+        public void BakeDataToRenderTexture()
+        {
+            if (_CopyInitialize)
+            {
+                _PointBuffer.Dispose();
+                _PointBuffer = new ComputeBuffer(_Positions.Length, 3 * sizeof(float));
+                _DataCopyShader.SetBuffer(_KernelIndex, "_PointData", _PointBuffer);
+
+                _DirecBuffer.Dispose();
+                _DirecBuffer = new ComputeBuffer(_Directions.Length, 3 * sizeof(float));
+                _DataCopyShader.SetBuffer(_KernelIndex, "_DirecData", _DirecBuffer);
+
+                _DataCopyShader.SetInt("arrayLenght", _Positions.Length);
+
+                _PointBuffer.SetData(_Positions.ToArray());
+
+                _DataCopyShader.Dispatch(_KernelIndex, _InternalPointTexture.width / 8, _InternalPointTexture.height, 1);
+            }
+            else
+            {
+                throw new System.Exception("Copy shader was not initialized correctly.");
+            }
+        }
+
         public void DrawSystem()
         {
-            for (int i = 0; i < _NOfBodies; i++)
-            {
-                Gizmos.color = Color.white;
-                Gizmos.DrawWireSphere(_Positions[i], 0.05f);
-                Gizmos.color = i == 0? Color.cyan : Color.red;
-                Gizmos.DrawLine(_Positions[i], _Positions[i] + _Directions[i] * _Velocities[i]*0.25f);
-            }
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawLine(_Positions[0], _Positions[0] + _Directions[0] * _Velocities[0] * 0.25f);
+
+            Gizmos.color = Color.white;
+            Gizmos.DrawWireSphere(_Positions[0], _SystemOptions.ObstacleVision);
+
+            //Gizmos.color = Color.red;
+            //Gizmos.DrawWireSphere(_Positions[0], _SystemOptions.CohesionRadius);
+
+            //Gizmos.color = Color.magenta;
+            //Gizmos.DrawWireSphere(_Positions[0], _SystemOptions.SeparationRadius);
+
+
+            //for (int i = 0; i < _NOfBodies; i++)
+            //{
+            //    Gizmos.color = Color.white;
+            //    Gizmos.DrawWireSphere(_Positions[i], 0.05f);
+            //    Gizmos.color = i == 0 ? Color.cyan : Color.red;
+            //    Gizmos.DrawLine(_Positions[i], _Positions[i] + _Directions[i] * _Velocities[i] * 0.25f);
+            //}
         }
 
         public void DrawSimulationArea(bool drawUsedCubes)
@@ -216,12 +288,22 @@ namespace AL.BoidSystem
             if (drawUsedCubes)
             {
                 float3 cubeSize = _SimArea.InnerCubeSize;
-                Gizmos.color = Color.cyan;
+                
 
                 for (int i = 0; i < _SimCubeCenters.Length; i++)
                 {
                     if (_GridToBoidsMap.IsCreated && _GridToBoidsMap.ContainsKey(i))
+                    {
+                        Gizmos.color = Color.cyan;
                         Gizmos.DrawWireCube(_SimCubeCenters[i], cubeSize);
+
+                        Gizmos.color = Color.red;
+                        Gizmos.DrawWireSphere(_SimCubeCenters[i], _SystemOptions.CohesionRadius);
+
+                        Gizmos.color = Color.magenta;
+                        Gizmos.DrawWireSphere(_SimCubeCenters[i], _SystemOptions.SeparationRadius);
+                    }
+                    
                 }
             }
 

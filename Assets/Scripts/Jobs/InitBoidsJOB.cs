@@ -21,9 +21,11 @@ namespace AL.BoidSystem.Jobs
 
         public void Execute(int index)
         {
-            _Pos[index] = _Rand.NextFloat3Direction() * _Rand.NextFloat(0.0f, 1.0f) * _Rad;
-            _Dir[index] = _Rand.NextFloat3Direction();
-            _Vel[index] = _Rand.NextFloat(_VelLimit.x, _VelLimit.y);
+            var rand = new Unity.Mathematics.Random((uint)((index+1)*_Rand.NextInt()));
+
+            _Pos[index] = rand.NextFloat3Direction() * rand.NextFloat(0.0f, 1.0f) * _Rad;
+            _Dir[index] = rand.NextFloat3Direction();
+            _Vel[index] = rand.NextFloat(_VelLimit.x, _VelLimit.y);
         }
     }
 }

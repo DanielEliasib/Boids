@@ -23,9 +23,9 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public NativeArray<RaycastHit> _RayCastHits;
 
         public Unity.Mathematics.Random rand;
-        public float deltaTime, changeRate;
-        public float separationRad, cohesionRad;
-        public float maxVel, minVel;
+        public float deltaTime;
+
+        [ReadOnly] public BoidSystemOptions _SystemOptions;
 
         //Index goes trought every box
         public void Execute(int index)
@@ -61,7 +61,7 @@ namespace AL.BoidSystem.Jobs
                 {
                     int boidID = iterator.Current;
 
-                    float t = deltaTime * changeRate;
+                    float t = deltaTime * _SystemOptions.ChangeRate;
                     float3 separation =localPosition - _OldPos[boidID];
                     float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
 
@@ -74,28 +74,26 @@ namespace AL.BoidSystem.Jobs
                         //newDir = _RayCastHits[boidID].normal;
                     }
 
-                    //newDir += rand.NextFloat3Direction() * rand.NextFloat(0.0f, 0.1f);
+                    newDir += rand.NextFloat3Direction() * rand.NextFloat(0.0f, _SystemOptions.NoiseMagnitude);
                     _Dir[boidID] = newDir;
 
                     //! New Velocity
                     _Vel[boidID] = math.lerp(_OldVel[boidID], localVelocity, t);
 
                     //! If it is too close
-                    if (dsq <= separationRad)
+                    if (dsq <= _SystemOptions.SeparationRadius)
                     {
                         if (_Vel[boidID] > localVelocity)
-                            _Vel[boidID] -= changeRate * deltaTime;
+                            _Vel[boidID] -= _SystemOptions.ChangeRate * deltaTime;
 
                     }
-                    else if (dsq > cohesionRad)    //! If it is too far
+                    else if (dsq > _SystemOptions.CohesionRadius)    //! If it is too far
                     {
                         if (_Vel[boidID] <= localVelocity)
-                            _Vel[boidID] += changeRate * deltaTime;
+                            _Vel[boidID] += _SystemOptions.ChangeRate * deltaTime;
                     }
 
-                    _Vel[boidID] = math.clamp(_Vel[boidID], minVel, 1);
-
-                    
+                    _Vel[boidID] = math.clamp(_Vel[boidID], _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
 
                 } while (iterator.MoveNext());
             }

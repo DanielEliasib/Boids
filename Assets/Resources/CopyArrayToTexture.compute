@@ -1,0 +1,31 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CopyKernel
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<half4> _PointResult;
+RWTexture2D<half4> _DirecResult;
+
+RWStructuredBuffer<float3> _PointData;
+RWStructuredBuffer<float3> _DirecData;
+
+int width, arrayLenght;
+half maxValue;
+
+[numthreads(8,8,1)]
+void CopyKernel(uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    if (id.y * width + id.x < arrayLenght)
+    {
+        _PointResult[id.xy] = half4(_PointData[id.y * width + id.x], 1.0);
+        _DirecResult[id.xy] = half4(_DirecData[id.y * width + id.x], 1.0);
+        //Result[id.xy] = half4(0.0, 1.0, 0.0, 1.0);
+    }
+    else
+    {
+        _PointResult[id.xy] = half4(maxValue, maxValue, maxValue, 0.0);
+        _DirecResult[id.xy] = half4(0.0, 0.0, 0.0, 0.0);
+
+    }
+}
