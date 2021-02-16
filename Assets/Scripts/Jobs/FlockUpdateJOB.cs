@@ -23,7 +23,7 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public NativeArray<RaycastHit> _RayCastHits;
 
         public Unity.Mathematics.Random rand;
-        public float deltaTime, changeVelocity;
+        public float deltaTime, changeRate;
         public float separationRad, cohesionRad;
         public float maxVel, minVel;
 
@@ -61,7 +61,7 @@ namespace AL.BoidSystem.Jobs
                 {
                     int boidID = iterator.Current;
 
-                    float t = deltaTime * changeVelocity;
+                    float t = deltaTime * changeRate;
                     float3 separation =localPosition - _OldPos[boidID];
                     float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
 
@@ -84,13 +84,13 @@ namespace AL.BoidSystem.Jobs
                     if (dsq <= separationRad)
                     {
                         if (_Vel[boidID] > localVelocity)
-                            _Vel[boidID] -= changeVelocity * deltaTime;
+                            _Vel[boidID] -= changeRate * deltaTime;
 
                     }
                     else if (dsq > cohesionRad)    //! If it is too far
                     {
                         if (_Vel[boidID] <= localVelocity)
-                            _Vel[boidID] += changeVelocity * deltaTime;
+                            _Vel[boidID] += changeRate * deltaTime;
                     }
 
                     _Vel[boidID] = math.clamp(_Vel[boidID], minVel, 1);

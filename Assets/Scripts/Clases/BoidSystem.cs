@@ -12,29 +12,36 @@ namespace AL.BoidSystem
 {
     public unsafe class BoidSystem
     {
-        NativeArray<float3> _Positions;
-        NativeArray<float3> _Directions;
-        NativeArray<float> _Velocities;
-
-        NativeArray<float3> _SimCubesCenter;
-        NativeMultiHashMap<int, int> _GridToBoidsMap;
+        //! Main Boid Data Holders
+        private NativeArray<float3> _Positions;
+        private NativeArray<float3> _Directions;
+        private NativeArray<float> _Velocities;
 
         private int _NOfBodies;
+
+        private BoidSystemOptions _SystemOptions;
+
+        //! Simulation Grid Data
         private SimulationArea _SimArea;
 
-        private float _SearchRad;
+        private NativeArray<float3> _SimCubeCenters;
+        private NativeMultiHashMap<int, int> _GridToBoidsMap;
 
+        //! Global JOBS
         private UpdateBoidsJOB _UpdateJOB;
         private FlockUpdateJOB _FlockJOB;
 
-        JobHandle _UpdateHandle;
+        //! Global JOB Handles
+        JobHandle updateHandle;
 
-        public BoidSystem(int nOfBoids, SimulationArea simArea)
+        public BoidSystem(int nOfBoids, SimulationArea simArea, ref BoidSystemOptions systemOptions)
         {
             _SimArea = simArea;
 
+            _SystemOptions = systemOptions;
+
             _NOfBodies = nOfBoids;
-            Initialize(_NOfBodies);
+            Initialize(_NOfBodies, 445);
         }
 
         public void Dispose()
@@ -42,7 +49,7 @@ namespace AL.BoidSystem
             _Positions.Dispose();
             _Directions.Dispose();
             _Velocities.Dispose();
-            _SimCubesCenter.Dispose();
+            _SimCubeCenters.Dispose();
 
             try
             {
@@ -51,19 +58,25 @@ namespace AL.BoidSystem
             catch { }
         }
 
-        private void Initialize(int n)
+        private void InitializeSimulationGrid()
         {
             _GridToBoidsMap = new NativeMultiHashMap<int, int>(_SimArea.NumberOfCubes, Allocator.TempJob);
-
-            _SimCubesCenter = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
+            _SimCubeCenters = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
 
             GenerateGridJOB _GenGridJOB = new GenerateGridJOB()
             {
-                _CubeCenters = _SimCubesCenter,
+                _CubeCenters = _SimCubeCenters,
                 _CubeSize = _SimArea.InnerCubeSize,
                 _Divitions = _SimArea.Divitions,
                 _InitialCubeCenter = _SimArea.Center - _SimArea.Size * 0.5f + _SimArea.InnerCubeSize * 0.5f
             };
+
+            _GenGridJOB.Schedule(_SimArea.NumberOfCubes, 8).Complete();
+        }
+
+        private void Initialize(int n, uint randSeed)
+        {
+            InitializeSimulationGrid();
 
             _Positions = new NativeArray<float3>(n, Allocator.Persistent);
             _Directions = new NativeArray<float3>(n, Allocator.Persistent);
@@ -74,8 +87,9 @@ namespace AL.BoidSystem
                 _Pos = _Positions,
                 _Dir = _Directions,
                 _Vel = _Velocities,
-                _Rand = new Unity.Mathematics.Random(1457),
-                _Rad = 2
+                _Rand = new Unity.Mathematics.Random(randSeed),
+                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z),
+                _VelLimit = _SystemOptions.VelocityLimits
             };
 
             _UpdateJOB = new UpdateBoidsJOB()
@@ -91,21 +105,24 @@ namespace AL.BoidSystem
             {
                 _Dir = _Directions,
                 _Vel = _Velocities,
-                minVel = 0.1f,
-                maxVel = 3.0f,
-                rand = new Unity.Mathematics.Random(182)
+                minVel = _SystemOptions.VelocityLimits.x,
+                maxVel = _SystemOptions.VelocityLimits.y,
+                rand = new Unity.Mathematics.Random(randSeed*randSeed)
             };
 
             _InitJob.Schedule(n, 8).Complete();
-            _GenGridJOB.Schedule(_SimArea.NumberOfCubes, 8).Complete();
         }
 
         public void UpdateSystem()
         {
+            // Debug
             var watch = new System.Diagnostics.Stopwatch();
             watch.Reset();
             watch.Start();
 
+            float deltaTime = Time.fixedDeltaTime;
+
+            //! Obstacle Findidng
             NativeArray<RaycastHit> _ObstacleHits = new NativeArray<RaycastHit>(_NOfBodies, Allocator.TempJob);
             NativeArray<RaycastCommand> _CastCommands = new NativeArray<RaycastCommand>(_NOfBodies, Allocator.TempJob);
 
@@ -114,20 +131,15 @@ namespace AL.BoidSystem
                 _Dir = _Directions,
                 _HitMask = LayerMask.NameToLayer("BoidObs"),
                 _RayCastCommands = _CastCommands,
-                _VisDistance = 1
+                _VisDistance = _SystemOptions.ObstacleVision
             };
 
+            // Schedule both jobs
             JobHandle genCastHandle = _GenerateCastJob.Schedule(_NOfBodies, 8);
             JobHandle rayCastHandle = RaycastCommand.ScheduleBatch(_CastCommands, _ObstacleHits, 8, genCastHandle);
 
-            genCastHandle.Complete();
-            rayCastHandle.Complete();
-
-            try
-            {
-                _GridToBoidsMap.Dispose();
-            }catch{Debug.Log("Oopss!");}
-
+            //! Boid grid hashing
+            _GridToBoidsMap.Dispose();
             _GridToBoidsMap = new NativeMultiHashMap<int, int>(_NOfBodies, Allocator.TempJob);
 
             HashBoidsToGirdJOB _HashBoidsJOB = new HashBoidsToGirdJOB()
@@ -139,8 +151,10 @@ namespace AL.BoidSystem
                 _AreaSize = _SimArea.Size
             };
 
-            _HashBoidsJOB.Schedule(_Positions.Length, 8).Complete();
+            // Scheduling
+            JobHandle hashBoidsHandle = _HashBoidsJOB.Schedule(_Positions.Length, 8, rayCastHandle);
 
+            //! Flock behaviour job
             NativeArray<float3> oldPos = new NativeArray<float3>(_Positions, Allocator.TempJob);
             NativeArray<float3> oldDir = new NativeArray<float3>(_Directions, Allocator.TempJob);
             NativeArray<float> oldVel = new NativeArray<float>(_Velocities, Allocator.TempJob);
@@ -149,29 +163,38 @@ namespace AL.BoidSystem
             _FlockJOB._OldDir = oldDir;
             _FlockJOB._OldVel = oldVel;
             _FlockJOB._GridToBoidsMap = _GridToBoidsMap;
-            _FlockJOB.deltaTime = Time.deltaTime;
-            _FlockJOB.changeVelocity = 0.05f;
-            _FlockJOB.separationRad = 0.15f;
-            _FlockJOB.cohesionRad = 0.5f;
+            _FlockJOB.deltaTime = deltaTime;
+            _FlockJOB.changeRate = _SystemOptions.ChangeRate;
+            _FlockJOB.separationRad = _SystemOptions.SeparationRadius;
+            _FlockJOB.cohesionRad = _SystemOptions.CohesionRadius;
             _FlockJOB._RayCastHits = _ObstacleHits;
             _FlockJOB.rand = new Unity.Mathematics.Random((uint)UnityEngine.Random.Range(1,15478));
 
-            JobHandle _UpdateFlockHandle = _FlockJOB.Schedule(_SimArea.NumberOfCubes, 8);
+            // Scheduling
+            JobHandle updateFlockHandle = _FlockJOB.Schedule(_SimArea.NumberOfCubes, 8, hashBoidsHandle);
 
-            _UpdateJOB.deltaTime = Time.deltaTime;
+            //! Simple update. If the above calculations take more time, they might be schedule every n frames, but this can still run every frame.
+            _UpdateJOB.deltaTime = deltaTime;
 
-            _UpdateHandle = _UpdateJOB.Schedule(_NOfBodies, 8, _UpdateFlockHandle);
+            // Scheduling
+            updateHandle = _UpdateJOB.Schedule(_NOfBodies, 8, updateFlockHandle);
 
-            _UpdateFlockHandle.Complete();
-            _UpdateHandle.Complete();
+            //! Complete All Jobs
+            genCastHandle.Complete();
+            rayCastHandle.Complete();
+            hashBoidsHandle.Complete();
+            updateFlockHandle.Complete();
+            updateHandle.Complete();
 
+            //! Dispose temporary collections. This might be improved and may not need to be disposed every time, maybe some swapping with the current positions
             oldPos.Dispose();
             oldDir.Dispose();
             oldVel.Dispose();
-
+            
             _CastCommands.Dispose();
             _ObstacleHits.Dispose();
 
+            // Debug
             watch.Stop();
 
             Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
@@ -188,20 +211,27 @@ namespace AL.BoidSystem
             }
         }
 
-        public void DrawSimulationArea()
+        public void DrawSimulationArea(bool drawUsedCubes)
         {
-            //float3 cubeSize = _SimArea.InnerCubeSize;
-            //Gizmos.color = Color.cyan;
+            if (drawUsedCubes)
+            {
+                float3 cubeSize = _SimArea.InnerCubeSize;
+                Gizmos.color = Color.cyan;
 
-            //for (int i = 0; i < _SimCubesCenter.Length; i++)
-            //{
-            //    if(_GridToBoidsMap.IsCreated && _GridToBoidsMap.ContainsKey(i))
-            //        Gizmos.DrawWireCube(_SimCubesCenter[i], cubeSize);
-            //}
-                
+                for (int i = 0; i < _SimCubeCenters.Length; i++)
+                {
+                    if (_GridToBoidsMap.IsCreated && _GridToBoidsMap.ContainsKey(i))
+                        Gizmos.DrawWireCube(_SimCubeCenters[i], cubeSize);
+                }
+            }
 
             Gizmos.color = Color.green;
             Gizmos.DrawWireCube(_SimArea.Center, _SimArea.Size);
+        }
+
+        public void UpdateSystemOptions(ref BoidSystemOptions systemOptions)
+        {
+            _SystemOptions = systemOptions;
         }
     }
 }
