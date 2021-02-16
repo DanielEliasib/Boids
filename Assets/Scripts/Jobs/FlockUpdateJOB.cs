@@ -20,6 +20,8 @@ namespace AL.BoidSystem.Jobs
 
         [ReadOnly] public NativeMultiHashMap<int, int> _GridToBoidsMap;
 
+        [ReadOnly] public NativeArray<RaycastHit> _RayCastHits;
+
         public Unity.Mathematics.Random rand;
         public float deltaTime, changeVelocity;
         public float separationRad, cohesionRad;
@@ -30,6 +32,7 @@ namespace AL.BoidSystem.Jobs
         {
             if (_GridToBoidsMap.ContainsKey(index))
             {
+                //! Calculate local values
                 float3 localPosition = float3.zero, localDirection = float3.zero;
                 float localVelocity = 0;
                 var iterator = _GridToBoidsMap.GetValuesForKey(index);
@@ -51,9 +54,9 @@ namespace AL.BoidSystem.Jobs
                 localDirection *= 1.0f / counter;
                 localVelocity *= 1.0f / counter;
 
-                //iterator = _GridToBoidsMap.GetValuesForKey(index);
                 iterator.Reset();
 
+                //! Do the work
                 do
                 {
                     int boidID = iterator.Current;
@@ -63,12 +66,18 @@ namespace AL.BoidSystem.Jobs
                     float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
 
                     //! New direction
-                    //_Dir[boidID] = _OldDir[boidID] * t + localDirection * (1 - t);
-                    _Dir[boidID] = math.normalize(Vector3.Lerp(_OldDir[boidID], localDirection, t));
-                    _Dir[boidID] += rand.NextFloat3Direction() * rand.NextFloat(0.0f, 0.1f);
+                    var newDir = math.normalize(Vector3.Lerp(_OldDir[boidID], localDirection, t));
+                    
+                    if (_RayCastHits[boidID].normal.x * _RayCastHits[boidID].normal.y * _RayCastHits[boidID].normal.z != 0)
+                    {
+                        newDir = math.normalize(Vector3.LerpUnclamped(newDir, _RayCastHits[boidID].normal, deltaTime * 1.0f/ _RayCastHits[boidID].distance));
+                        //newDir = _RayCastHits[boidID].normal;
+                    }
+
+                    //newDir += rand.NextFloat3Direction() * rand.NextFloat(0.0f, 0.1f);
+                    _Dir[boidID] = newDir;
 
                     //! New Velocity
-                    //_Vel[boidID] = _OldVel[boidID] * t + localVelocity * (1 - t);
                     _Vel[boidID] = math.lerp(_OldVel[boidID], localVelocity, t);
 
                     //! If it is too close
@@ -84,7 +93,9 @@ namespace AL.BoidSystem.Jobs
                             _Vel[boidID] += changeVelocity * deltaTime;
                     }
 
-                    _Vel[boidID] = math.clamp(_Vel[boidID], minVel, maxVel);
+                    _Vel[boidID] = math.clamp(_Vel[boidID], minVel, 1);
+
+                    
 
                 } while (iterator.MoveNext());
             }

@@ -74,7 +74,7 @@ namespace AL.BoidSystem
                 _Pos = _Positions,
                 _Dir = _Directions,
                 _Vel = _Velocities,
-                _Rand = new Unity.Mathematics.Random(452),
+                _Rand = new Unity.Mathematics.Random(1457),
                 _Rad = 2
             };
 
@@ -93,7 +93,7 @@ namespace AL.BoidSystem
                 _Vel = _Velocities,
                 minVel = 0.1f,
                 maxVel = 3.0f,
-                rand = new Unity.Mathematics.Random(10)
+                rand = new Unity.Mathematics.Random(182)
             };
 
             _InitJob.Schedule(n, 8).Complete();
@@ -102,6 +102,27 @@ namespace AL.BoidSystem
 
         public void UpdateSystem()
         {
+            var watch = new System.Diagnostics.Stopwatch();
+            watch.Reset();
+            watch.Start();
+
+            NativeArray<RaycastHit> _ObstacleHits = new NativeArray<RaycastHit>(_NOfBodies, Allocator.TempJob);
+            NativeArray<RaycastCommand> _CastCommands = new NativeArray<RaycastCommand>(_NOfBodies, Allocator.TempJob);
+
+            GenerateRayCastCommandsJOB _GenerateCastJob = new GenerateRayCastCommandsJOB() {
+                _Pos = _Positions,
+                _Dir = _Directions,
+                _HitMask = LayerMask.NameToLayer("BoidObs"),
+                _RayCastCommands = _CastCommands,
+                _VisDistance = 1
+            };
+
+            JobHandle genCastHandle = _GenerateCastJob.Schedule(_NOfBodies, 8);
+            JobHandle rayCastHandle = RaycastCommand.ScheduleBatch(_CastCommands, _ObstacleHits, 8, genCastHandle);
+
+            genCastHandle.Complete();
+            rayCastHandle.Complete();
+
             try
             {
                 _GridToBoidsMap.Dispose();
@@ -132,6 +153,8 @@ namespace AL.BoidSystem
             _FlockJOB.changeVelocity = 0.05f;
             _FlockJOB.separationRad = 0.15f;
             _FlockJOB.cohesionRad = 0.5f;
+            _FlockJOB._RayCastHits = _ObstacleHits;
+            _FlockJOB.rand = new Unity.Mathematics.Random((uint)UnityEngine.Random.Range(1,15478));
 
             JobHandle _UpdateFlockHandle = _FlockJOB.Schedule(_SimArea.NumberOfCubes, 8);
 
@@ -145,6 +168,13 @@ namespace AL.BoidSystem
             oldPos.Dispose();
             oldDir.Dispose();
             oldVel.Dispose();
+
+            _CastCommands.Dispose();
+            _ObstacleHits.Dispose();
+
+            watch.Stop();
+
+            Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
         }
 
         public void DrawSystem()

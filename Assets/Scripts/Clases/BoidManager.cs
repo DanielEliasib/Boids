@@ -15,7 +15,7 @@ public class BoidManager : MonoBehaviour
     void Start()
     {
         _Init = false;
-        _System = new BoidSystem(8*100, new SimulationArea(new int3(13,13,13), float3.zero, new float3(20,20,20)));
+        _System = new BoidSystem(8*300, new SimulationArea(new int3(13,13,13), float3.zero, new float3(5,5,5)));
         _Init = true;
     }
 

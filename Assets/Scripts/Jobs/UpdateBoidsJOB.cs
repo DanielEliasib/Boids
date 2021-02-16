@@ -16,6 +16,7 @@ namespace AL.BoidSystem.Jobs
 
         [ReadOnly] public float deltaTime;
         [ReadOnly] public float3 _AreaSize;
+
         public void Execute(int index)
         {
             _Pos[index] += _Dir[index] * _Vel[index] * deltaTime;
@@ -41,8 +42,6 @@ namespace AL.BoidSystem.Jobs
             }
 
             _Pos[index] += change;
-
-            //_Pos[index] = math.sign(_Pos[index])*math.clamp(math.abs(_Pos[index]), 0, _AreaSize * 0.5f);
         }
     }
 }
