@@ -263,7 +263,7 @@ MonoBehaviour:
   _VelocityLimits:
     x: 0.1
     y: 0.3
-  _ObstacleVision: 1
+  _ObstacleVision: 0.1
   _ChangeRate: 0.15
   _SeparationRadius: 0.01
   _CohesionRadius: 0.25
@@ -273,9 +273,9 @@ MonoBehaviour:
     y: 0
     z: 0
   _AreaSize:
-    x: 5
-    y: 5
-    z: 5
+    x: 1
+    y: 1
+    z: 1
   _AreaDivitions:
     x: 3
     y: 3

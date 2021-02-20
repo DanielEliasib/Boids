@@ -120,6 +120,7 @@ namespace AL.BoidSystem
                 _Dir = _Directions,
                 _Vel = _Velocities,
                 _SystemOptions = _SystemOptions,
+                _SimArea = _SimArea,
                 rand = new Unity.Mathematics.Random(randSeed*randSeed)
             };
 
@@ -180,6 +181,7 @@ namespace AL.BoidSystem
             _FlockJOB.deltaTime = deltaTime;
             _FlockJOB._SystemOptions = _SystemOptions;
             _FlockJOB.rand = new Unity.Mathematics.Random((uint)UnityEngine.Random.Range(1,15478));
+            _FlockJOB._VisDistance = _SystemOptions.ObstacleVision;
 
             // Scheduling
             JobHandle updateFlockHandle = _FlockJOB.Schedule(_SimArea.NumberOfCubes, 8, hashBoidsHandle);
@@ -208,7 +210,7 @@ namespace AL.BoidSystem
             // Debug
             watch.Stop();
 
-            Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
+            //Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
         }
 
         public void InitializeCopyShader(ref RenderTexture positionMap, ref RenderTexture directionMap)
@@ -251,7 +253,7 @@ namespace AL.BoidSystem
 
                 _PointBuffer.SetData(_Positions.ToArray());
 
-                _DataCopyShader.Dispatch(_KernelIndex, _InternalPointTexture.width / 8, _InternalPointTexture.height, 1);
+                //_DataCopyShader.Dispatch(_KernelIndex, _InternalPointTexture.width / 8, _InternalPointTexture.height, 1);
             }
             else
             {

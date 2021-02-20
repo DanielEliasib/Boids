@@ -46,6 +46,8 @@ public class BoidManager : MonoBehaviour
 
         if (_NumberOfBoids % 8 != 0)
             throw new System.Exception("Number of boids MUST be divisible by 8.");
+        
+        _NumberOfBoids = 1;
 
         _SystemOptions = new BoidSystemOptions()
         {
@@ -90,7 +92,7 @@ public class BoidManager : MonoBehaviour
 
         _PointRederer.SetFloat("ParticleSize", _ParticleSize);
 
-        Debug.Log($"Test: {_PointRederer.aliveParticleCount}");
+        //Debug.Log($"Test: {_PointRederer.aliveParticleCount}");
     }
 
     private void UpdateOptionsValues()
