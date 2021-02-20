@@ -47,7 +47,7 @@ public class BoidManager : MonoBehaviour
         if (_NumberOfBoids % 8 != 0)
             throw new System.Exception("Number of boids MUST be divisible by 8.");
         
-        _NumberOfBoids = 1;
+        //_NumberOfBoids = 1;
 
         _SystemOptions = new BoidSystemOptions()
         {

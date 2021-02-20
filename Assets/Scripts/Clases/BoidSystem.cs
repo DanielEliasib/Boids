@@ -253,7 +253,7 @@ namespace AL.BoidSystem
 
                 _PointBuffer.SetData(_Positions.ToArray());
 
-                //_DataCopyShader.Dispatch(_KernelIndex, _InternalPointTexture.width / 8, _InternalPointTexture.height, 1);
+                _DataCopyShader.Dispatch(_KernelIndex, _InternalPointTexture.width / 8, _InternalPointTexture.height, 1);
             }
             else
             {
