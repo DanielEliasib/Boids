@@ -11,23 +11,25 @@ namespace AL.BoidSystem.Jobs
     //Flock Behavior
     public struct FlockUpdateJOB : IJobParallelFor
     {
+        //! LookUp Data
         [ReadOnly] public NativeArray<float3> _OldPos;
-        [ReadOnly] public NativeArray<float3> _OldDir;
-        [ReadOnly] public NativeArray<float> _OldVel;
+        [ReadOnly] public NativeArray<float3> _OldVel;  // Let's make it so Dirs has also velocity information
 
-        [NativeDisableParallelForRestriction] public NativeArray<float3> _Dir;
-        [NativeDisableParallelForRestriction] public NativeArray<float> _Vel;
+        //! New Generated Data
+        [NativeDisableParallelForRestriction] public NativeArray<float3> _Vel;
 
+        //! Simulation Area Data
         [ReadOnly] public NativeMultiHashMap<int, int> _GridToBoidsMap;
+        [ReadOnly] public SimulationArea _SimArea;
 
+        //! Obstacle Data
         [ReadOnly] public NativeArray<RaycastHit> _RayCastHits;
+        [ReadOnly] public float _VisDistance;
+        [ReadOnly] public BoidSystemOptions _SystemOptions;
 
+        //! Other
         public Unity.Mathematics.Random rand;
         public float deltaTime;
-
-        [ReadOnly] public BoidSystemOptions _SystemOptions;
-        [ReadOnly] public SimulationArea _SimArea;
-        [ReadOnly] public float _VisDistance;
 
         //Index goes trought every box
         public void Execute(int index)
@@ -35,9 +37,10 @@ namespace AL.BoidSystem.Jobs
             if (_GridToBoidsMap.ContainsKey(index))
             {
                 //  ********************************
-                //! Calculate local values
-                float3 localPosition = float3.zero, localDirection = float3.zero;
-                float localVelocity = 0;
+                //: Calculate local values
+                //? Should this be done in other JOB?
+                float3 localPosition = float3.zero, localVelocity = float3.zero;
+
                 var iterator = _GridToBoidsMap.GetValuesForKey(index);
                 int counter = 0;
 
@@ -46,15 +49,13 @@ namespace AL.BoidSystem.Jobs
                     int boidID = iterator.Current;
 
                     localPosition += _OldPos[boidID];
-                    localDirection += _OldDir[boidID];
                     localVelocity += _OldVel[boidID];
 
                     counter++;
 
                 } while (iterator.MoveNext());
 
-                localPosition *= 1.0f / counter;
-                localDirection *= 1.0f / counter;
+                localPosition *= 1.0f / counter;    //! Counter should be at least one.
                 localVelocity *= 1.0f / counter;
 
                 iterator.Reset();
@@ -64,35 +65,37 @@ namespace AL.BoidSystem.Jobs
                 do
                 {
                     int boidID = iterator.Current;
-
                     float t = deltaTime * _SystemOptions.ChangeRate;
 
                     //: New direction
-                    var newDir = math.normalize(Vector3.Lerp(_OldDir[boidID], localDirection, t));
+                    //? Is Lerp fast enogh?
+                    //float3 newVelocity = _OldVel[boidID];
+                    float3 newVelocity = Vector3.Lerp(_OldVel[boidID], localVelocity, t);  //Steers towards the avarage direction but also keeps it's magnitude which is the speed.
 
                     //: Avoid Collisions
                     if (_RayCastHits[boidID].normal.x * _RayCastHits[boidID].normal.y * _RayCastHits[boidID].normal.z != 0)
                     {
-                        newDir = math.normalize(Vector3.LerpUnclamped(newDir, _RayCastHits[boidID].normal, deltaTime * 1.0f / _RayCastHits[boidID].distance));
+                        newVelocity = Vector3.LerpUnclamped(newVelocity, _RayCastHits[boidID].normal, t / _RayCastHits[boidID].distance);   //The closer it get's 1/d tends to infinity.
                     }
 
                     //: Avoid Simulation Walls
                     float3 halfArea = _SimArea.Size * 0.5f;
+                    float3 boidDir = Vector3.Normalize(_OldVel[boidID]);    //? Is normalize worth it?
 
                     float3 intersectionParameters = halfArea - math.abs(_OldPos[boidID]);
-                    intersectionParameters = intersectionParameters / (_VisDistance * _OldDir[boidID]);
+                    intersectionParameters = intersectionParameters / (_VisDistance * boidDir);
                     
-                    var closestIntersec = minValue(intersectionParameters);
+                    var closestIntersec = minValue(ref intersectionParameters);
 
                     // 0 -> zy plane
                     // 1 -> xz plane
                     // 2 -> yz plane
                     float3 normal = float3.zero;
-                    float3 signs = float3.zero;
+                    float3 signs;
 
-                    if (closestIntersec.val <= 1.0f)
+                    if (closestIntersec.val <= 1.0f)    //! If it's grather than one then it is too far away of behind.
                     {
-                        float3 interPoint = _OldPos[boidID] + _VisDistance * _OldDir[boidID] * closestIntersec.val;
+                        float3 interPoint = _OldPos[boidID] + _VisDistance * boidDir * closestIntersec.val;
                         switch (closestIntersec.index)
                         {
                             case 0:
@@ -114,48 +117,52 @@ namespace AL.BoidSystem.Jobs
                             default:
                                 break;
                         }
-                        Debug.Log($"Interparams: {intersectionParameters}");
-                        Debug.Log($"Normal: {normal}");
+
+                        newVelocity = Vector3.LerpUnclamped(newVelocity, normal, deltaTime / closestIntersec.val);
                     }
 
-                    newDir = math.normalize(Vector3.LerpUnclamped(newDir, normal, deltaTime * 1.0f / closestIntersec.val)); ;
-                    //float3 newDir = _OldDir[boidID] + normal;
+                    newVelocity += rand.NextFloat3Direction() * rand.NextFloat(0.0f, _SystemOptions.NoiseMagnitude);
 
-                    newDir += rand.NextFloat3Direction() * rand.NextFloat(0.0f, _SystemOptions.NoiseMagnitude);
-                    _Dir[boidID] = newDir;
+                    //: New Speed
+                    //float3 separation = localPosition - _OldPos[boidID];
+                    //float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
 
-                    //: New Velocity
-                    float3 separation = localPosition - _OldPos[boidID];
-                    float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
+                    //float speedSqr = _OldVel[boidID].x * _OldVel[boidID].x + _OldVel[boidID].y * _OldVel[boidID].y + _OldVel[boidID].z * _OldVel[boidID].z;
+                    //float localSpeedSqr = localVelocity.x * localVelocity.x + localVelocity.y * localVelocity.y + localVelocity.z * localVelocity.z;
 
-                    _Vel[boidID] = math.lerp(_OldVel[boidID], localVelocity, t);
+                    ////! If it is too close
+                    //if (dsq <= _SystemOptions.SeparationRadius)
+                    //{
+                    //    if (speedSqr >= localSpeedSqr)
+                    //        newVelocity -= boidDir * t;
 
-                    //! If it is too close
-                    if (dsq <= _SystemOptions.SeparationRadius)
-                    {
-                        if (_Vel[boidID] > localVelocity)
-                            _Vel[boidID] -= _SystemOptions.ChangeRate * deltaTime;
+                    //}
+                    //else if (dsq > _SystemOptions.CohesionRadius)    //! If it is too far
+                    //{
+                    //    if (speedSqr <= localSpeedSqr)
+                    //        newVelocity += boidDir * _SystemOptions.ChangeRate * t;
+                    //}
 
-                    }
-                    else if (dsq > _SystemOptions.CohesionRadius)    //! If it is too far
-                    {
-                        if (_Vel[boidID] <= localVelocity)
-                            _Vel[boidID] += _SystemOptions.ChangeRate * deltaTime;
-                    }
+                    ClampMagnitude(ref newVelocity, _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
 
-                    _Vel[boidID] = math.clamp(_Vel[boidID], _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
-
-                    _Vel[boidID] = _OldVel[boidID];
-
+                    _Vel[boidID] = newVelocity;
                 } while (iterator.MoveNext());
             }
         }
 
-        (int index, float val) minValue(float3 vec)
+        (int index, float val) minValue(ref float3 vec)
         {
             float3 temp = vec * vec;
             int index = temp.x < temp.y ? (temp.x < temp.z ? 0 : 2) : (temp.y < temp.z ? 1 : 2);
             return (index, math.abs(vec[index]));
         }
+
+        public static void ClampMagnitude(ref float3 v, float max, float min)
+        {
+            double sm = v.x * v.x + v.y * v.y + v.z * v.z;
+
+            v = sm > (double)max * (double)max ? math.normalize(v) * max : math.normalize(v) * min;
+        }
     }
+    
 }

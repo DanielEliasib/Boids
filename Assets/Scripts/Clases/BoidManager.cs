@@ -37,7 +37,7 @@ public class BoidManager : MonoBehaviour
     private RenderTexture _PointDataTexture;
     private RenderTexture _DirecDataTexture;
 
-
+    
 
     // Start is called before the first frame update
     void Start()
@@ -107,6 +107,8 @@ public class BoidManager : MonoBehaviour
         _System.UpdateSystemOptions(ref _SystemOptions);
     }
 
+    
+
     private void OnDestroy()
     {
         _System.Dispose();
@@ -118,6 +120,11 @@ public class BoidManager : MonoBehaviour
         {
             _System.DrawSystem();
             _System.DrawSimulationArea(_DrawGrid);
+        }else if (_DrawGrid)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(_AreaCenter, _AreaSize);
+
         }
     }
 }

@@ -11,8 +11,7 @@ namespace AL.BoidSystem.Jobs
     public struct InitBoidsJOB : IJobParallelFor
     {
         public NativeArray<float3> _Pos;
-        public NativeArray<float3> _Dir;
-        public NativeArray<float> _Vel;
+        public NativeArray<float3> _Vel;
 
         [ReadOnly] public Unity.Mathematics.Random _Rand;
 
@@ -24,8 +23,7 @@ namespace AL.BoidSystem.Jobs
             var rand = new Unity.Mathematics.Random((uint)((index+1)*_Rand.NextInt()));
 
             _Pos[index] = rand.NextFloat3Direction() * rand.NextFloat(0.0f, 1.0f) * _Rad;
-            _Dir[index] = rand.NextFloat3Direction();
-            _Vel[index] = rand.NextFloat(_VelLimit.x, _VelLimit.y);
+            _Vel[index] = rand.NextFloat3Direction() * rand.NextFloat(_VelLimit.x, _VelLimit.y);
         }
     }
 }

@@ -14,8 +14,7 @@ namespace AL.BoidSystem
     {
         //! Main Boid Data Holders
         private NativeArray<float3> _Positions;
-        private NativeArray<float3> _Directions;
-        private NativeArray<float> _Velocities;
+        private NativeArray<float3> _Velocities;
 
         private int _NOfBodies;
 
@@ -61,7 +60,6 @@ namespace AL.BoidSystem
         public void Dispose()
         {
             _Positions.Dispose();
-            _Directions.Dispose();
             _Velocities.Dispose();
             _SimCubeCenters.Dispose();
 
@@ -93,31 +91,26 @@ namespace AL.BoidSystem
             InitializeSimulationGrid();
 
             _Positions = new NativeArray<float3>(n, Allocator.Persistent);
-            _Directions = new NativeArray<float3>(n, Allocator.Persistent);
-            _Velocities = new NativeArray<float>(n, Allocator.Persistent);
+            _Velocities = new NativeArray<float3>(n, Allocator.Persistent);
 
             InitBoidsJOB _InitJob = new InitBoidsJOB()
             {
                 _Pos = _Positions,
-                _Dir = _Directions,
                 _Vel = _Velocities,
                 _Rand = new Unity.Mathematics.Random(randSeed),
-                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z)*0.1f,
+                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z)*0.45f,
                 _VelLimit = _SystemOptions.VelocityLimits
             };
 
             _UpdateJOB = new UpdateBoidsJOB()
             {
                 _Pos = _Positions,
-                _Dir = _Directions,
                 _Vel = _Velocities,
-                _AreaSize = _SimArea.Size,
                 deltaTime = 0
             };
 
             _FlockJOB = new FlockUpdateJOB()
             {
-                _Dir = _Directions,
                 _Vel = _Velocities,
                 _SystemOptions = _SystemOptions,
                 _SimArea = _SimArea,
@@ -142,7 +135,7 @@ namespace AL.BoidSystem
 
             GenerateRayCastCommandsJOB _GenerateCastJob = new GenerateRayCastCommandsJOB() {
                 _Pos = _Positions,
-                _Dir = _Directions,
+                _Vel = _Velocities,
                 _HitMask = LayerMask.NameToLayer("BoidObs"),
                 _RayCastCommands = _CastCommands,
                 _VisDistance = _SystemOptions.ObstacleVision
@@ -170,11 +163,9 @@ namespace AL.BoidSystem
 
             //! Flock behaviour job
             NativeArray<float3> oldPos = new NativeArray<float3>(_Positions, Allocator.TempJob);
-            NativeArray<float3> oldDir = new NativeArray<float3>(_Directions, Allocator.TempJob);
-            NativeArray<float> oldVel = new NativeArray<float>(_Velocities, Allocator.TempJob);
+            NativeArray<float3> oldVel = new NativeArray<float3>(_Velocities, Allocator.TempJob);
 
             _FlockJOB._OldPos = oldPos;
-            _FlockJOB._OldDir = oldDir;
             _FlockJOB._OldVel = oldVel;
             _FlockJOB._GridToBoidsMap = _GridToBoidsMap;
             _FlockJOB._RayCastHits = _ObstacleHits;
@@ -201,7 +192,6 @@ namespace AL.BoidSystem
 
             //! Dispose temporary collections. This might be improved and may not need to be disposed every time, maybe some swapping with the current positions
             oldPos.Dispose();
-            oldDir.Dispose();
             oldVel.Dispose();
             
             _CastCommands.Dispose();
@@ -210,7 +200,7 @@ namespace AL.BoidSystem
             // Debug
             watch.Stop();
 
-            //Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
+            Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
         }
 
         public void InitializeCopyShader(ref RenderTexture positionMap, ref RenderTexture directionMap)
@@ -246,7 +236,7 @@ namespace AL.BoidSystem
                 _DataCopyShader.SetBuffer(_KernelIndex, "_PointData", _PointBuffer);
 
                 _DirecBuffer.Dispose();
-                _DirecBuffer = new ComputeBuffer(_Directions.Length, 3 * sizeof(float));
+                _DirecBuffer = new ComputeBuffer(_Velocities.Length, 3 * sizeof(float));
                 _DataCopyShader.SetBuffer(_KernelIndex, "_DirecData", _DirecBuffer);
 
                 _DataCopyShader.SetInt("arrayLenght", _Positions.Length);
@@ -264,7 +254,7 @@ namespace AL.BoidSystem
         public void DrawSystem()
         {
             Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(_Positions[0], _Positions[0] + _Directions[0] * _Velocities[0] * 0.25f);
+            Gizmos.DrawLine(_Positions[0], _Positions[0] + _Velocities[0]);
 
             Gizmos.color = Color.white;
             Gizmos.DrawWireSphere(_Positions[0], _SystemOptions.ObstacleVision);

@@ -11,7 +11,7 @@ namespace AL.BoidSystem.Jobs
     public struct GenerateRayCastCommandsJOB : IJobParallelFor
     {
         [ReadOnly] public NativeArray<float3> _Pos;
-        [ReadOnly] public NativeArray<float3> _Dir;
+        [ReadOnly] public NativeArray<float3> _Vel;
 
         [ReadOnly] public float _VisDistance;
         [ReadOnly] public int _HitMask;
@@ -20,7 +20,7 @@ namespace AL.BoidSystem.Jobs
 
         public void Execute(int index)
         {
-            _RayCastCommands[index] = new RaycastCommand(_Pos[index], _Dir[index], _VisDistance, _HitMask, 1);
+            _RayCastCommands[index] = new RaycastCommand(_Pos[index], _Vel[index], _VisDistance, _HitMask, 1);
         }
     }
 }
