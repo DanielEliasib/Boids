@@ -12,6 +12,7 @@ namespace AL.BoidSystem.Jobs
     {
         public NativeArray<float3> _Pos;
         public NativeArray<float3> _Vel;
+        public NativeArray<Matrix4x4> _Mat;
 
         [ReadOnly] public Unity.Mathematics.Random _Rand;
 
@@ -24,6 +25,7 @@ namespace AL.BoidSystem.Jobs
 
             _Pos[index] = rand.NextFloat3Direction() * rand.NextFloat(0.0f, 1.0f) * _Rad;
             _Vel[index] = rand.NextFloat3Direction() * rand.NextFloat(_VelLimit.x, _VelLimit.y);
+            _Mat[index] = Matrix4x4.TRS(_Pos[index], Quaternion.LookRotation(_Vel[index]), Vector3.one);
         }
     }
 }

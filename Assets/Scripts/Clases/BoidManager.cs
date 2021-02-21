@@ -43,9 +43,6 @@ public class BoidManager : MonoBehaviour
     void Start()
     {
         _Init = false;
-
-        if (_NumberOfBoids % 8 != 0)
-            throw new System.Exception("Number of boids MUST be divisible by 8.");
         
         //_NumberOfBoids = 1;
 
@@ -98,7 +95,8 @@ public class BoidManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        _System.Dispose();
+        _System?.Dispose();
+        _MatrixBuffer?.Dispose();
     }
 
     private void OnDrawGizmos()
