@@ -5,6 +5,8 @@ using UnityEngine;
 using AL.BoidSystem;
 using Unity.Mathematics;
 
+using Unity.Collections;
+
 public class BoidManager : MonoBehaviour
 {
     [Header("Boids options"), Tooltip("For better results use number divisible by 8.")]
@@ -24,20 +26,18 @@ public class BoidManager : MonoBehaviour
     [SerializeField] int3 _AreaDivitions = new int3(10,10,10);
 
     [Header("Render Options")]
-    [SerializeField] private UnityEngine.VFX.VisualEffect _PointRederer;
-    [SerializeField] private float _ParticleSize = 0.1f;
+    [SerializeField] private Mesh _BoidMesh;
+    [SerializeField] private Material _BoidMaterial;
 
     [Header("Debug info")]
     [SerializeField] bool _DrawGrid = false;
 
-
+    static readonly int matricesId = Shader.PropertyToID("_Matrices");
     private BoidSystem _System;
     private bool _Init;
 
-    private RenderTexture _PointDataTexture;
-    private RenderTexture _DirecDataTexture;
-
-    
+    private NativeArray<Matrix4x4> _BoidMatrices;
+    private ComputeBuffer _MatrixBuffer;
 
     // Start is called before the first frame update
     void Start()
@@ -61,25 +61,10 @@ public class BoidManager : MonoBehaviour
 
         _System = new BoidSystem(_NumberOfBoids, new SimulationArea(_AreaDivitions, _AreaCenter, _AreaSize), ref _SystemOptions);
 
-        _PointDataTexture = new RenderTexture(_NumberOfBoids, 1, 0, RenderTextureFormat.ARGBHalf, 0);
-        _DirecDataTexture = new RenderTexture(_NumberOfBoids, 1, 0, RenderTextureFormat.ARGBHalf, 0);
+        _System.GetMatrices(ref _BoidMatrices);
+        _MatrixBuffer = new ComputeBuffer(_BoidMatrices.Length, 4 * 4 * sizeof(float));
 
-        _PointDataTexture.enableRandomWrite = true;
-        _DirecDataTexture.enableRandomWrite = true;
-
-        _PointDataTexture.Create();
-        _DirecDataTexture.Create();
-
-        _PointRederer.SetTexture("PositionMap", _PointDataTexture);
-        _PointRederer.SetTexture("DirectionsMap", _DirecDataTexture);
-
-        _PointRederer.SetInt("NumberOfBoids", _NumberOfBoids);
-        
-        _PointRederer.SetFloat("ParticleSize", _ParticleSize);
-        _PointRederer.Reinit();
-
-        _System.InitializeCopyShader(ref _PointDataTexture, ref _DirecDataTexture);
-
+        _BoidMaterial.SetBuffer(matricesId, _MatrixBuffer);
         _Init = true;
     }
 
@@ -88,9 +73,11 @@ public class BoidManager : MonoBehaviour
     {
         UpdateOptionsValues();
         _System.UpdateSystem();
-        _System.BakeDataToRenderTexture();
 
-        _PointRederer.SetFloat("ParticleSize", _ParticleSize);
+        Debug.Log($"Matrices: {_BoidMatrices.Length}");
+        _MatrixBuffer.SetData(_BoidMatrices);
+
+        Graphics.DrawMeshInstancedProcedural(_BoidMesh, 0, _BoidMaterial, new Bounds(_AreaCenter, _AreaSize), _BoidMatrices.Length);
 
         //Debug.Log($"Test: {_PointRederer.aliveParticleCount}");
     }

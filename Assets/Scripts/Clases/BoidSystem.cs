@@ -15,6 +15,7 @@ namespace AL.BoidSystem
         //! Main Boid Data Holders
         private NativeArray<float3> _Positions;
         private NativeArray<float3> _Velocities;
+        private NativeArray<Matrix4x4> _Matrices;
 
         private int _NOfBodies;
 
@@ -33,22 +34,8 @@ namespace AL.BoidSystem
         //! Global JOB Handles
         JobHandle updateHandle;
 
-        //! Baking Data
-        private ComputeShader _DataCopyShader;
-        private ComputeBuffer _PointBuffer;
-        private ComputeBuffer _DirecBuffer;
-        private int _KernelIndex;
-        private string _KernelName = "CopyKernel";
-
-        private RenderTexture _InternalPointTexture;
-        private RenderTexture _InternalDirecTexture;
-
-        private bool _CopyInitialize;
-
         public BoidSystem(int nOfBoids, SimulationArea simArea, ref BoidSystemOptions systemOptions)
         {
-            _CopyInitialize = false;
-
             _SimArea = simArea;
 
             _SystemOptions = systemOptions;
@@ -61,6 +48,8 @@ namespace AL.BoidSystem
         {
             _Positions.Dispose();
             _Velocities.Dispose();
+            _Matrices.Dispose();
+
             _SimCubeCenters.Dispose();
 
             try
@@ -92,6 +81,7 @@ namespace AL.BoidSystem
 
             _Positions = new NativeArray<float3>(n, Allocator.Persistent);
             _Velocities = new NativeArray<float3>(n, Allocator.Persistent);
+            _Matrices = new NativeArray<Matrix4x4>(n, Allocator.Persistent);
 
             InitBoidsJOB _InitJob = new InitBoidsJOB()
             {
@@ -106,6 +96,8 @@ namespace AL.BoidSystem
             {
                 _Pos = _Positions,
                 _Vel = _Velocities,
+                _Mat = _Matrices,
+                _One = new float3(1,1,1),
                 deltaTime = 0
             };
 
@@ -203,52 +195,12 @@ namespace AL.BoidSystem
             Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
         }
 
-        public void InitializeCopyShader(ref RenderTexture positionMap, ref RenderTexture directionMap)
+        public void GetMatrices(ref NativeArray<Matrix4x4> matrices)
         {
-            _InternalPointTexture = positionMap;
-            _InternalDirecTexture = directionMap;
+            if (_Matrices == null)
+                throw new System.Exception("Not initialized yet.");
 
-            _DataCopyShader = (ComputeShader)Resources.Load("CopyArrayToTexture");
-
-            Debug.Log(_DataCopyShader);
-
-            _KernelIndex = _DataCopyShader.FindKernel(_KernelName);
-
-            _DataCopyShader.SetTexture(_KernelIndex, "_PointResult", _InternalPointTexture);
-            _DataCopyShader.SetTexture(_KernelIndex, "_DirecResult", _InternalDirecTexture);
-
-            _DataCopyShader.SetInt("width", _InternalPointTexture.width);
-
-            _DataCopyShader.SetFloat("maxValue", half.MaxValue);
-
-            _PointBuffer = new ComputeBuffer(1, 3 * sizeof(float));
-            _DirecBuffer = new ComputeBuffer(1, 3 * sizeof(float));
-
-            _CopyInitialize = true;
-        }
-
-        public void BakeDataToRenderTexture()
-        {
-            if (_CopyInitialize)
-            {
-                _PointBuffer.Dispose();
-                _PointBuffer = new ComputeBuffer(_Positions.Length, 3 * sizeof(float));
-                _DataCopyShader.SetBuffer(_KernelIndex, "_PointData", _PointBuffer);
-
-                _DirecBuffer.Dispose();
-                _DirecBuffer = new ComputeBuffer(_Velocities.Length, 3 * sizeof(float));
-                _DataCopyShader.SetBuffer(_KernelIndex, "_DirecData", _DirecBuffer);
-
-                _DataCopyShader.SetInt("arrayLenght", _Positions.Length);
-
-                _PointBuffer.SetData(_Positions.ToArray());
-
-                _DataCopyShader.Dispatch(_KernelIndex, _InternalPointTexture.width / 8, _InternalPointTexture.height, 1);
-            }
-            else
-            {
-                throw new System.Exception("Copy shader was not initialized correctly.");
-            }
+            matrices = _Matrices;
         }
 
         public void DrawSystem()

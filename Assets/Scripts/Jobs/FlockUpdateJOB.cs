@@ -55,98 +55,104 @@ namespace AL.BoidSystem.Jobs
 
                 } while (iterator.MoveNext());
 
-                localPosition *= 1.0f / counter;    //! Counter should be at least one.
-                localVelocity *= 1.0f / counter;
+                //localPosition *= 1.0f / counter;    //! Counter should be at least one.
+                //localVelocity *= 1.0f / counter;
 
                 iterator.Reset();
-
-                //  ********************************
-                //! Do the work
-                do
+                if(counter > 1)
                 {
-                    int boidID = iterator.Current;
-                    float t = deltaTime * _SystemOptions.ChangeRate;
-
-                    //: New direction
-                    //? Is Lerp fast enogh?
-                    //float3 newVelocity = _OldVel[boidID];
-                    float3 newVelocity = Vector3.Lerp(_OldVel[boidID], localVelocity, t);  //Steers towards the avarage direction but also keeps it's magnitude which is the speed.
-
-                    //: Avoid Collisions
-                    if (_RayCastHits[boidID].normal.x * _RayCastHits[boidID].normal.y * _RayCastHits[boidID].normal.z != 0)
+                    //  ********************************
+                    //! Do the work
+                    do
                     {
-                        newVelocity = Vector3.LerpUnclamped(newVelocity, _RayCastHits[boidID].normal, t / _RayCastHits[boidID].distance);   //The closer it get's 1/d tends to infinity.
-                    }
+                        int boidID = iterator.Current;
+                        float3 realLocalPosition = (localPosition - _OldPos[boidID])/(counter-1);
+                        float3 realLocalVelocity = (localVelocity - _OldVel[boidID])/(counter-1);
+                        
+                        float t = deltaTime * _SystemOptions.ChangeRate;
 
-                    //: Avoid Simulation Walls
-                    float3 halfArea = _SimArea.Size * 0.5f;
-                    float3 boidDir = Vector3.Normalize(_OldVel[boidID]);    //? Is normalize worth it?
+                        //: New direction
+                        //? Is Lerp fast enogh?
+                        float3 newVelocity = _OldVel[boidID];
+                        //float3 newVelocity = Vector3.Lerp(_OldVel[boidID], realLocalVelocity, t);  //Steers towards the avarage direction but also keeps it's magnitude which is the speed.
 
-                    float3 intersectionParameters = halfArea - math.abs(_OldPos[boidID]);
-                    intersectionParameters = intersectionParameters / (_VisDistance * boidDir);
-                    
-                    var closestIntersec = minValue(ref intersectionParameters);
+                        //: Avoid Collisions
+                        //if (_RayCastHits[boidID].normal.x * _RayCastHits[boidID].normal.y * _RayCastHits[boidID].normal.z != 0)
+                        //{
+                        //    newVelocity = Vector3.LerpUnclamped(newVelocity, _RayCastHits[boidID].normal, t / _RayCastHits[boidID].distance);   //The closer it get's 1/d tends to infinity.
+                        //}
+                        
+                        //: Avoid Simulation Walls
+                        float3 halfArea = _SimArea.Size * 0.5f;
+                        float3 boidDir = Vector3.Normalize(_OldVel[boidID]);    //? Is normalize worth it?
 
-                    // 0 -> zy plane
-                    // 1 -> xz plane
-                    // 2 -> yz plane
-                    float3 normal = float3.zero;
-                    float3 signs;
+                        float3 intersectionParameters = halfArea - math.abs(_OldPos[boidID]);
+                        intersectionParameters = intersectionParameters / (_VisDistance * boidDir);
 
-                    if (closestIntersec.val <= 1.0f)    //! If it's grather than one then it is too far away of behind.
-                    {
-                        float3 interPoint = _OldPos[boidID] + _VisDistance * boidDir * closestIntersec.val;
-                        switch (closestIntersec.index)
+                        var closestIntersec = minValue(ref intersectionParameters);
+
+                        // 0 -> zy plane
+                        // 1 -> xz plane
+                        // 2 -> yz plane
+                        float3 normal = float3.zero;
+                        float3 signs;
+
+                        if (closestIntersec.val <= 1.0f)    //! If it's grather than one then it is too far away of behind.
                         {
-                            case 0:
-                                normal = new float3(-1.0f, 0.0f, 0.0f);
-                                signs = math.sign(interPoint);
-                                normal = normal * signs;
-                                
-                            break;
-                            case 1:
-                                normal = new float3(0.0f, -1.0f, 0.0f);
-                                signs = math.sign(interPoint);
-                                normal = normal * signs;
-                                break;
-                            case 2:
-                                normal = new float3(0.0f, 0.0f, -1.0f);
-                                signs = math.sign(interPoint);
-                                normal = normal * signs;
-                                break;
-                            default:
-                                break;
+                            float3 interPoint = _OldPos[boidID] + _VisDistance * boidDir * closestIntersec.val;
+                            switch (closestIntersec.index)
+                            {
+                                case 0:
+                                    normal = new float3(-1.0f, 0.0f, 0.0f);
+                                    signs = math.sign(interPoint);
+                                    normal = normal * signs;
+
+                                    break;
+                                case 1:
+                                    normal = new float3(0.0f, -1.0f, 0.0f);
+                                    signs = math.sign(interPoint);
+                                    normal = normal * signs;
+                                    break;
+                                case 2:
+                                    normal = new float3(0.0f, 0.0f, -1.0f);
+                                    signs = math.sign(interPoint);
+                                    normal = normal * signs;
+                                    break;
+                                default:
+                                    break;
+                            }
+
+                            newVelocity = Vector3.Lerp(newVelocity, normal, (deltaTime) / (closestIntersec.val + 0.1f));
                         }
 
-                        newVelocity = Vector3.LerpUnclamped(newVelocity, normal, deltaTime / closestIntersec.val);
-                    }
+                        //newVelocity += rand.NextFloat3Direction() * rand.NextFloat(0.0f, _SystemOptions.NoiseMagnitude);
 
-                    newVelocity += rand.NextFloat3Direction() * rand.NextFloat(0.0f, _SystemOptions.NoiseMagnitude);
+                        //: New Speed
+                        //float3 separation = realLocalPosition - _OldPos[boidID];
+                        //float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
 
-                    //: New Speed
-                    //float3 separation = localPosition - _OldPos[boidID];
-                    //float dsq = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
+                        //float speedSqr = _OldVel[boidID].x * _OldVel[boidID].x + _OldVel[boidID].y * _OldVel[boidID].y + _OldVel[boidID].z * _OldVel[boidID].z;
+                        //float localSpeedSqr = realLocalVelocity.x * realLocalVelocity.x + realLocalVelocity.y * realLocalVelocity.y + realLocalVelocity.z * realLocalVelocity.z;
 
-                    //float speedSqr = _OldVel[boidID].x * _OldVel[boidID].x + _OldVel[boidID].y * _OldVel[boidID].y + _OldVel[boidID].z * _OldVel[boidID].z;
-                    //float localSpeedSqr = localVelocity.x * localVelocity.x + localVelocity.y * localVelocity.y + localVelocity.z * localVelocity.z;
+                        ////! If it is too close
+                        //if (dsq <= _SystemOptions.SeparationRadius)
+                        //{
+                        //    if (speedSqr >= localSpeedSqr)
+                        //        newVelocity -= boidDir * t;
 
-                    ////! If it is too close
-                    //if (dsq <= _SystemOptions.SeparationRadius)
-                    //{
-                    //    if (speedSqr >= localSpeedSqr)
-                    //        newVelocity -= boidDir * t;
+                        //}
+                        //else if (dsq > _SystemOptions.CohesionRadius)    //! If it is too far
+                        //{
+                        //    if (speedSqr <= localSpeedSqr)
+                        //        newVelocity += boidDir * _SystemOptions.ChangeRate * t;
+                        //}
 
-                    //}
-                    //else if (dsq > _SystemOptions.CohesionRadius)    //! If it is too far
-                    //{
-                    //    if (speedSqr <= localSpeedSqr)
-                    //        newVelocity += boidDir * _SystemOptions.ChangeRate * t;
-                    //}
+                        ClampMagnitude(ref newVelocity, _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
 
-                    ClampMagnitude(ref newVelocity, _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
-
-                    _Vel[boidID] = newVelocity;
-                } while (iterator.MoveNext());
+                        _Vel[boidID] = newVelocity;
+                    } while (iterator.MoveNext());
+                }
+                
             }
         }
 
