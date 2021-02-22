@@ -45,6 +45,8 @@ namespace AL.BoidSystem
         private GenerateRayCastCommandsJOB _GenerateRaycastJOB;
         private CollisionForceJOB _CollisionJOB;
         private BoidAlignJOB _AlignJOB;
+        private BoidCohesionJOB _CohesionJOB;
+        private BoidSeparationJOB _SeparationJOB;
         private UpdateBoidsJOB _UpdateJOB;
 
         //! Global JOB Handles
@@ -166,8 +168,26 @@ namespace AL.BoidSystem
                 _CorrectionForce = _CorrectionForces,
                 _GridToBoidsMap = _GridToBoidsMap,
                 _OldPosition = _OldPositions,
+                _OldVelocity = _OldVelocities
+            };
+
+            _CohesionJOB = new BoidCohesionJOB()
+            {
+                _BoidToGridMap = _BoidToGridMap,
+                _CorrectionForce = _CorrectionForces,
+                _GridToBoidsMap = _GridToBoidsMap,
+                _OldPosition = _OldPositions,
+                _OldVelocity = _OldVelocities
+            };
+
+            _SeparationJOB = new BoidSeparationJOB()
+            {
+                _BoidToGridMap = _BoidToGridMap,
+                _CorrectionForce = _CorrectionForces,
+                _GridToBoidsMap = _GridToBoidsMap,
+                _OldPosition = _OldPositions,
                 _OldVelocity = _OldVelocities,
-                _SimArea = _SimArea
+                _SystemOptions = _SystemOptions
             };
 
             _UpdateJOB = new UpdateBoidsJOB()
@@ -219,6 +239,17 @@ namespace AL.BoidSystem
             _AlignJOB._OldVelocity = _OldVelocities;
             JobHandle alignBoidsHandle = _AlignJOB.Schedule(_NBoids, 8, hashBoidsHandle);
 
+            _CohesionJOB._OldPosition = _OldPositions;
+            _CohesionJOB._OldVelocity = _OldVelocities;
+            JobHandle cohesionBoidHandle = _CohesionJOB.Schedule(_NBoids, 8, hashBoidsHandle);
+
+            _SeparationJOB._OldPosition = _OldPositions;
+            _SeparationJOB._OldVelocity = _OldVelocities;
+            _SeparationJOB._SystemOptions = _SystemOptions;
+            JobHandle separationBoidHandle = _SeparationJOB.Schedule(_NBoids, 8, hashBoidsHandle);
+
+            JobHandle combinedHandle = JobHandle.CombineDependencies(alignBoidsHandle, cohesionBoidHandle, separationBoidHandle);
+
             //! Update
             _UpdateJOB._SystemOptions = _SystemOptions;
             _UpdateJOB.deltaTime = Time.deltaTime;
@@ -226,88 +257,9 @@ namespace AL.BoidSystem
             _UpdateJOB._OldVelocity = _OldVelocities;
             _UpdateJOB._Position = _Positions;
             _UpdateJOB._Velocity = _Velocities;
-            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 8, JobHandle.CombineDependencies(collisionHandle, alignBoidsHandle));
+            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 8, JobHandle.CombineDependencies(collisionHandle, combinedHandle));
 
             updateHandle.Complete();
-
-            //! Debug
-            //var watch = new System.Diagnostics.Stopwatch();
-            //watch.Reset();
-            //watch.Start();
-
-            //float deltaTime = Time.fixedDeltaTime;
-
-            ////! Save old data
-            //NativeArray<float3> oldPos = new NativeArray<float3>(_Positions, Allocator.TempJob);
-            //NativeArray<float3> oldVel = new NativeArray<float3>(_Velocities, Allocator.TempJob);
-
-            ////! Obstacle Findidng
-            ////TODO: Recycle this JOB
-            //GenerateRayCastCommandsJOB _GenerateCastJob = new GenerateRayCastCommandsJOB() {
-            //    _Pos = _Positions,
-            //    _HitMask = LayerMask.NameToLayer("BoidObs"),
-            //    _RayCastCommands = _RayCastCommands,
-            //    _VisDistance = _SystemOptions.ObstacleVision,
-            //    _NumberOfBoids = _NOfBodies,
-            //    _RayDirections = _RayDirections,
-            //    _TransformMatrices = _Matrices
-            //};
-
-            //// Schedule both jobs
-            //JobHandle genCastHandle = _GenerateCastJob.Schedule(_NOfBodies * _NumberOfRays, 8);
-            //JobHandle rayCastHandle = RaycastCommand.ScheduleBatch(_RayCastCommands, _ObstacleHits, 8, genCastHandle);
-
-            ////! Handle Obstacles
-            //_CollisionJob._NewVel = _Velocities;
-            //JobHandle collisionHandle = _CollisionJob.Schedule(_NOfBodies, 8, rayCastHandle);
-
-            ////! Boid grid hashing
-            //_GridToBoidsMap.Dispose();
-            //_GridToBoidsMap = new NativeMultiHashMap<int, int>(_SimArea.Divitions.x* _SimArea.Divitions.y* _SimArea.Divitions.z, Allocator.TempJob);
-
-            //HashBoidsToGirdJOB _HashBoidsJOB = new HashBoidsToGirdJOB()
-            //{
-            //    _CubeSize = _SimArea.InnerCubeSize,
-            //    _Divitions = _SimArea.Divitions,
-            //    _Pos = oldPos,
-            //    _CubeToBoidMap = _GridToBoidsMap.AsParallelWriter(),
-            //    _AreaSize = _SimArea.Size
-            //};
-
-            //// Scheduling
-            //JobHandle hashBoidsHandle = _HashBoidsJOB.Schedule(_Positions.Length, 8);
-
-            ////! Flock behaviour job
-            //_FlockJOB._OldPos = oldPos;
-            //_FlockJOB._OldVel = oldVel;
-            //_FlockJOB._GridToBoidsMap = _GridToBoidsMap;
-            //_FlockJOB._RayCastHits = _ObstacleHits;
-            //_FlockJOB.deltaTime = deltaTime;
-            //_FlockJOB._SystemOptions = _SystemOptions;
-            //_FlockJOB.rand = new Unity.Mathematics.Random((uint)UnityEngine.Random.Range(1,15478));
-            //_FlockJOB._VisDistance = _SystemOptions.ObstacleVision;
-
-            //// Scheduling
-            //JobHandle updateFlockHandle = _FlockJOB.Schedule(_SimArea.NumberOfCubes, 8, JobHandle.CombineDependencies(hashBoidsHandle, collisionHandle));
-
-            ////! Simple update. If the above calculations take more time, they might be schedule every n frames, but this can still run every frame.
-            //_UpdateJOB.deltaTime = deltaTime;
-            //_UpdateJOB._OldVel = oldVel;
-            //_UpdateJOB._SystemOptions = _SystemOptions;
-
-            //// Scheduling
-            //updateHandle = _UpdateJOB.Schedule(_NOfBodies, 8, updateFlockHandle);
-
-            ////! Complete All Jobs
-            //genCastHandle.Complete();
-            //rayCastHandle.Complete();
-            //hashBoidsHandle.Complete();
-            //updateFlockHandle.Complete();
-            //updateHandle.Complete();
-
-            ////! Dispose temporary collections. This might be improved and may not need to be disposed every time, maybe some swapping with the current positions
-            //oldPos.Dispose();
-            //oldVel.Dispose();
 
             //// Debug
             //watch.Stop();

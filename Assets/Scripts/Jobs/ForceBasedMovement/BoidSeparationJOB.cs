@@ -4,7 +4,7 @@ using Unity.Collections;
 
 namespace AL.BoidSystem.Jobs
 {
-    public struct BoidAlignJOB : IJobParallelFor
+    public struct BoidSeparationJOB : IJobParallelFor
     {
         //! This will be shared through several JOB. Is it thread safe?
         public NativeArray<float3> _CorrectionForce;
@@ -16,7 +16,8 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public NativeMultiHashMap<int, int> _GridToBoidsMap;
         [ReadOnly] public NativeArray<int> _BoidToGridMap;
 
-        //: Index goes trought every boid
+        [ReadOnly] public BoidSystemOptions _SystemOptions;
+
         public void Execute(int boidID)
         {
             int gridKey = _BoidToGridMap[boidID];
@@ -24,17 +25,24 @@ namespace AL.BoidSystem.Jobs
 
             int counter = 0;
 
-            float3 localVelocity = float3.zero;
+            float3 newForce = float3.zero;
 
             while (iterator.MoveNext())
             {
                 int otherBoidID = iterator.Current;
 
-                localVelocity += otherBoidID != boidID?_OldVelocity[otherBoidID] : float3.zero;
-                counter += otherBoidID != boidID? 1 : 0;
+                if(otherBoidID != boidID)
+                {
+                    float3 sep = _OldPosition[otherBoidID] - _OldPosition[boidID];
+                    float msqr = sep.x * sep.x + sep.y * sep.y + sep.z * sep.z;
+                    if (msqr <= _SystemOptions.SeparationRadius * _SystemOptions.SeparationRadius)
+                        newForce += -math.normalize(sep) * _SystemOptions.SeparationRadius - _OldVelocity[boidID];
+                    counter++;
+                }
+
             }
-            
-            _CorrectionForce[boidID] += counter > 0? (localVelocity/counter - _OldVelocity[boidID]) : float3.zero;
+
+            _CorrectionForce[boidID] += counter > 0 ? newForce : float3.zero;
         }
     }
 }
