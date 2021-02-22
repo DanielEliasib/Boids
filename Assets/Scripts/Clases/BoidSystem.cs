@@ -205,6 +205,11 @@ namespace AL.BoidSystem
 
         public void UpdateSystem()
         {
+            //! Debug
+            var watch = new System.Diagnostics.Stopwatch();
+            watch.Reset();
+            watch.Start();
+
             //! Swapping
             Swap(ref _OldPositions, ref _Positions);
             Swap(ref _OldVelocities, ref _Velocities);
@@ -261,10 +266,10 @@ namespace AL.BoidSystem
 
             updateHandle.Complete();
 
-            //// Debug
-            //watch.Stop();
+            // Debug
+            watch.Stop();
 
-            //Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
+            Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
         }
 
         public void GetMatrices(ref NativeArray<float4x4> matrices)
