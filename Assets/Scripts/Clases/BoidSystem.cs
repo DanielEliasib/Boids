@@ -19,6 +19,10 @@ namespace AL.BoidSystem
         private NativeArray<float3> _OldPositions;
         private NativeArray<float3> _OldVelocities;
 
+        private NativeArray<float3> _LocalPositions;
+        private NativeArray<float3> _LocalVelocities;
+        private NativeArray<int> _LocalCounter;
+
         private NativeArray<float3> _CorrectionForces;
         private NativeArray<float4x4> _Matrices;
 
@@ -46,6 +50,7 @@ namespace AL.BoidSystem
         //! Global JOBS
         private GenerateRayCastCommandsJOB _GenerateRaycastJOB;
         private CollisionForceJOB _CollisionJOB;
+        private GridPreCalculationsJOB _LocalValuesJOB;
         private BoidAdditionalForcesJOB _AdditionalForcesJOB;
         private BoidAlignJOB _AlignJOB;
         private BoidCohesionJOB _CohesionJOB;
@@ -55,7 +60,10 @@ namespace AL.BoidSystem
         //! Global JOB Handles
         JobHandle updateHandle;
 
-        private float3[] _ZeroArray;
+        private float3[] _ZeroArrayBoidf3;
+        private int[] _ZeroArrayBoidi1;
+        private float3[] _ZeroArrayGridf3;
+        private int[] _ZeroArrayGridi1;
 
         public BoidSystem(int nOfBoids, SimulationArea simArea, ref BoidSystemOptions systemOptions)
         {
@@ -75,6 +83,10 @@ namespace AL.BoidSystem
             _OldVelocities.Dispose();
             _CorrectionForces.Dispose();
             _Matrices.Dispose();
+
+            _LocalPositions.Dispose();
+            _LocalVelocities.Dispose();
+            _LocalCounter.Dispose();
 
             _InterestPoints.Dispose();
 
@@ -110,7 +122,10 @@ namespace AL.BoidSystem
 
         private void Initialize(int n, uint randSeed)
         {
-            _ZeroArray = new float3[n];
+            _ZeroArrayBoidf3 = new float3[n];
+            _ZeroArrayBoidi1 = new int[n];
+            _ZeroArrayGridf3 = new float3[_SimArea.NumberOfCubes];
+            _ZeroArrayGridi1 = new int[_SimArea.NumberOfCubes]; 
 
             //! Initialize Simulation Grid
             InitializeSimulationGrid();
@@ -121,10 +136,18 @@ namespace AL.BoidSystem
             _Velocities = new NativeArray<float3>(n, Allocator.Persistent);
             _OldPositions = new NativeArray<float3>(n, Allocator.Persistent);
             _OldVelocities = new NativeArray<float3>(n, Allocator.Persistent);
+
+            _LocalPositions = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
+            _LocalVelocities = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
+            _LocalCounter = new NativeArray<int>(_SimArea.NumberOfCubes, Allocator.Persistent);
+
             _InterestPoints = new NativeArray<float3>(1, Allocator.Persistent);
 
+            //! Update arrays
             _CorrectionForces = new NativeArray<float3>(n, Allocator.Persistent);
             _Matrices = new NativeArray<float4x4>(n, Allocator.Persistent);
+
+            //! Obstacle finding
             _RayDirections = new NativeArray<float3>(_NRays, Allocator.Persistent);
             _RayCastCommands = new NativeArray<RaycastCommand>(_NBoids * _NRays, Allocator.Persistent);
             _ObstacleHits = new NativeArray<RaycastHit>(_NBoids * _NRays, Allocator.Persistent);
@@ -168,6 +191,16 @@ namespace AL.BoidSystem
                 _NumberOfRays = _NRays
             };
 
+            _LocalValuesJOB = new GridPreCalculationsJOB()
+            {
+                _LocalPosition = _LocalPositions,
+                _LocalVelocity = _LocalVelocities,
+                _BoidPerGrid = _LocalCounter,
+                _GridToBoidsMap = _GridToBoidsMap,
+                _OldPosition = _OldPositions,
+                _OldVelocity = _OldVelocities
+            };
+
             _AdditionalForcesJOB = new BoidAdditionalForcesJOB()
             {
                 _CorrectionForce = _CorrectionForces,
@@ -178,18 +211,24 @@ namespace AL.BoidSystem
 
             _AlignJOB = new BoidAlignJOB()
             {
-                _BoidToGridMap = _BoidToGridMap,
                 _CorrectionForce = _CorrectionForces,
-                _GridToBoidsMap = _GridToBoidsMap,
+                _LocalPosition = _LocalPositions,
+                _LocalVelocity = _LocalVelocities,
+                _LocalCounter = _LocalCounter,
+                _BoidToGridMap = _BoidToGridMap,
+                
                 _OldPosition = _OldPositions,
                 _OldVelocity = _OldVelocities
             };
 
             _CohesionJOB = new BoidCohesionJOB()
             {
-                _BoidToGridMap = _BoidToGridMap,
                 _CorrectionForce = _CorrectionForces,
-                _GridToBoidsMap = _GridToBoidsMap,
+                _LocalPosition = _LocalPositions,
+                _LocalVelocity = _LocalVelocities,
+                _LocalCounter = _LocalCounter,
+                _BoidToGridMap = _BoidToGridMap,
+                
                 _OldPosition = _OldPositions,
                 _OldVelocity = _OldVelocities
             };
@@ -230,12 +269,16 @@ namespace AL.BoidSystem
             Swap(ref _OldPositions, ref _Positions);
             Swap(ref _OldVelocities, ref _Velocities);
 
+            _CorrectionForces.CopyFrom(_ZeroArrayBoidf3);
+            _LocalPositions.CopyFrom(_ZeroArrayGridf3);
+            _LocalVelocities.CopyFrom(_ZeroArrayGridf3);
+            _LocalCounter.CopyFrom(_ZeroArrayGridi1);
+            _BoidToGridMap.CopyFrom(_ZeroArrayBoidi1);
+
             //! Obstacle handling
             _GenerateRaycastJOB._OldPos = _OldPositions;
             JobHandle genCommandsHandle = _GenerateRaycastJOB.Schedule(_NBoids * _NRays, 8);
             JobHandle rayCastHandle = RaycastCommand.ScheduleBatch(_RayCastCommands, _ObstacleHits, 8, genCommandsHandle);
-
-            _CorrectionForces.CopyFrom(_ZeroArray);
 
             _CollisionJOB._OldVelocity = _OldVelocities;
             JobHandle collisionHandle = _CollisionJOB.Schedule(_NBoids, 8, rayCastHandle);
@@ -256,9 +299,13 @@ namespace AL.BoidSystem
             // Scheduling
             JobHandle hashBoidsHandle = _HashBoidsJOB.Schedule(_Positions.Length, 8);
 
+            _LocalValuesJOB._OldPosition = _OldPositions;
+            _LocalValuesJOB._OldVelocity = _OldVelocities;
+            JobHandle localHandle = _LocalValuesJOB.Schedule(_SimArea.NumberOfCubes, 8, hashBoidsHandle);
+
             _AlignJOB._OldPosition = _OldPositions;
             _AlignJOB._OldVelocity = _OldVelocities;
-            JobHandle alignBoidsHandle = _AlignJOB.Schedule(_NBoids, 8, hashBoidsHandle);
+            JobHandle alignBoidsHandle = _AlignJOB.Schedule(_NBoids, 8, localHandle);
 
             _AdditionalForcesJOB._OldPosition = _OldPositions;
             _AdditionalForcesJOB._OldVelocity = _OldVelocities;
@@ -266,7 +313,7 @@ namespace AL.BoidSystem
 
             _CohesionJOB._OldPosition = _OldPositions;
             _CohesionJOB._OldVelocity = _OldVelocities;
-            JobHandle cohesionBoidHandle = _CohesionJOB.Schedule(_NBoids, 8, hashBoidsHandle);
+            JobHandle cohesionBoidHandle = _CohesionJOB.Schedule(_NBoids, 8, localHandle);
 
             _SeparationJOB._OldPosition = _OldPositions;
             _SeparationJOB._OldVelocity = _OldVelocities;
@@ -322,21 +369,6 @@ namespace AL.BoidSystem
 
                 Gizmos.DrawRay(_RayCastCommands[index].from, _RayCastCommands[index].direction * _SystemOptions.ObstacleVision);
             }
-
-            //Gizmos.color = Color.red;
-            //Gizmos.DrawWireSphere(_Positions[0], _SystemOptions.CohesionRadius);
-
-            //Gizmos.color = Color.magenta;
-            //Gizmos.DrawWireSphere(_Positions[0], _SystemOptions.SeparationRadius);
-
-
-            //for (int i = 0; i < _NOfBodies; i++)
-            //{
-            //    Gizmos.color = Color.white;
-            //    Gizmos.DrawWireSphere(_Positions[i], 0.05f);
-            //    Gizmos.color = i == 0 ? Color.cyan : Color.red;
-            //    Gizmos.DrawLine(_Positions[i], _Positions[i] + _Directions[i] * _Velocities[i] * 0.25f);
-            //}
         }
 
         public void GenerateSimulationWalls()
@@ -394,11 +426,9 @@ namespace AL.BoidSystem
                         Gizmos.color = Color.cyan;
                         Gizmos.DrawWireCube(_SimCubeCenters[i], cubeSize);
 
-                        Gizmos.color = Color.red;
-                        Gizmos.DrawWireSphere(_SimCubeCenters[i], _SystemOptions.CohesionRadius);
-
                         Gizmos.color = Color.magenta;
-                        Gizmos.DrawWireSphere(_SimCubeCenters[i], _SystemOptions.SeparationRadius);
+                        Gizmos.DrawWireSphere(_LocalPositions[i], 0.05f);
+                        Gizmos.DrawRay(_LocalPositions[i], _LocalVelocities[i]);
                     }
                     
                 }
