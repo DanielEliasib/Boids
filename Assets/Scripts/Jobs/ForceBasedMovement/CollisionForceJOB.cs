@@ -3,8 +3,11 @@ using Unity.Jobs;
 using Unity.Collections;
 using UnityEngine;
 
+using Unity.Burst;
+
 namespace AL.BoidSystem.Jobs
 {
+    [BurstCompile]
     public struct CollisionForceJOB : IJobParallelFor
     {
         //! This will be shared through several JOB. Is it thread safe?

@@ -1,9 +1,8 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-
-using Unity.Jobs;
+﻿using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Collections;
+
+using Unity.Burst;
 
 namespace AL.BoidSystem.Jobs
 {
@@ -20,8 +19,8 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public float deltaTime;
         [ReadOnly] public BoidSystemOptions _SystemOptions;
 
-        private static float3 _One = new float3(1, 1, 1);
-        private static float3 _Up = new float3(0, 1, 0);
+        [ReadOnly] private static float3 _One = new float3(1, 1, 1);
+        [ReadOnly] private static float3 _Up = new float3(0, 1, 0);
 
         public void Execute(int boidID)
         {

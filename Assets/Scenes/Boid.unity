@@ -372,7 +372,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f9132a380fb848429abffdfff0a31f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _NumberOfBoids: 4800
+  _NumberOfBoids: 6000
   _VelocityLimits:
     x: 0.2
     y: 1.25
@@ -541,7 +541,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 16e90a41b375ed54bbd9bd40e7d4aa76, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

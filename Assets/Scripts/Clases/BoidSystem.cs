@@ -240,7 +240,9 @@ namespace AL.BoidSystem
                 _GridToBoidsMap = _GridToBoidsMap,
                 _OldPosition = _OldPositions,
                 _OldVelocity = _OldVelocities,
-                _SystemOptions = _SystemOptions
+                _SystemOptions = _SystemOptions,
+                _LocalCounter = _LocalCounter,
+                _Rand = new Unity.Mathematics.Random(randSeed)
             };
 
             _UpdateJOB = new UpdateBoidsJOB()
@@ -318,7 +320,7 @@ namespace AL.BoidSystem
             _SeparationJOB._OldPosition = _OldPositions;
             _SeparationJOB._OldVelocity = _OldVelocities;
             _SeparationJOB._SystemOptions = _SystemOptions;
-            JobHandle separationBoidHandle = _SeparationJOB.Schedule(_NBoids, 8, hashBoidsHandle);
+            JobHandle separationBoidHandle = _SeparationJOB.Schedule(_NBoids, 8, localHandle);
 
             JobHandle combinedHandle = JobHandle.CombineDependencies(alignBoidsHandle, cohesionBoidHandle, separationBoidHandle);
 

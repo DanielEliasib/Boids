@@ -6,9 +6,12 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Collections;
 
+using Unity.Burst;
+
 namespace AL.BoidSystem.Jobs
 {
     //: Maybe will make it so that it RayCast more only if the first one finds something.
+    [BurstCompile]
     public struct GenerateRayCastCommandsJOB : IJobParallelFor
     {
         [ReadOnly] public NativeArray<float3> _RayDirections;

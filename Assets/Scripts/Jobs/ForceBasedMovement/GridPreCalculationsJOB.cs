@@ -2,8 +2,11 @@
 using Unity.Jobs;
 using Unity.Collections;
 
+using Unity.Burst;
+
 namespace AL.BoidSystem.Jobs
 {
+    [BurstCompile]
     public struct GridPreCalculationsJOB : IJobParallelFor
     {
         public NativeArray<float3> _LocalPosition;
