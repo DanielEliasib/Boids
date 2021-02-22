@@ -8,7 +8,7 @@ using Unity.Mathematics;
 
 namespace AL.BoidSystem.Jobs
 {
-    public struct UpdateBoidsJOB : IJobParallelFor
+    public struct UpdateBoidsOLDJOB : IJobParallelFor
     {
         public NativeArray<float3> _Pos;
         public NativeArray<float3> _Vel;

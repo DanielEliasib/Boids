@@ -8,11 +8,12 @@ using Unity.Collections;
 
 namespace AL.BoidSystem.Jobs
 {
+    //: Maybe will make it so that it RayCast more only if the first one finds something.
     public struct GenerateRayCastCommandsJOB : IJobParallelFor
     {
         [ReadOnly] public NativeArray<float3> _RayDirections;
-        [ReadOnly] public NativeArray<float3> _Pos;
-        [ReadOnly] public NativeArray<Matrix4x4> _TransformMatrices;
+        [ReadOnly] public NativeArray<float3> _OldPos;
+        [ReadOnly] public NativeArray<float4x4> _TransMatrices;
 
         [ReadOnly] public float _VisDistance;
         [ReadOnly] public int _HitMask;
@@ -30,10 +31,11 @@ namespace AL.BoidSystem.Jobs
             int rayIndex = index / _NumberOfBoids;
             int boidIndex = index % _NumberOfBoids;
 
-            float3 pos = _Pos[boidIndex];
-            float3 dir = _TransformMatrices[boidIndex].rotation * _RayDirections[rayIndex];
+            float3 pos = _OldPos[boidIndex];
+            float3 dir = math.mul(_TransMatrices[boidIndex], new float4(_RayDirections[rayIndex], 0)).xyz;
 
             _RayCastCommands[index] = new RaycastCommand(pos, dir, _VisDistance, _HitMask, 1);
         }
+
     }
 }

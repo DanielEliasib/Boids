@@ -36,7 +36,7 @@ public class BoidManager : MonoBehaviour
     private BoidSystem _System;
     private bool _Init;
 
-    private NativeArray<Matrix4x4> _BoidMatrices;
+    private NativeArray<float4x4> _BoidMatrices;
     private ComputeBuffer _MatrixBuffer;
 
     // Start is called before the first frame update

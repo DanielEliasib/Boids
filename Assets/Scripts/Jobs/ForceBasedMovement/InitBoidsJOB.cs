@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 using Unity.Collections;
 using Unity.Jobs;
@@ -12,20 +11,23 @@ namespace AL.BoidSystem.Jobs
     {
         public NativeArray<float3> _Pos;
         public NativeArray<float3> _Vel;
-        public NativeArray<Matrix4x4> _Mat;
+        public NativeArray<float4x4> _Mat;
 
-        [ReadOnly] public Unity.Mathematics.Random _Rand;
+        [ReadOnly] public Random _Rand;
 
         [ReadOnly] public float _Rad;
         [ReadOnly] public float2 _VelLimit;
 
+        private static float3 _One = new float3(1, 1, 1);
+        private static float3 _Up = new float3(0, 1, 0);
+
         public void Execute(int index)
         {
-            var rand = new Unity.Mathematics.Random((uint)((index+1)*_Rand.NextInt()));
+            var rand = new Random((uint)((index+1)*_Rand.NextInt()));
 
             _Pos[index] = rand.NextFloat3Direction() * rand.NextFloat(0.0f, 1.0f) * _Rad;
             _Vel[index] = rand.NextFloat3Direction() * rand.NextFloat(_VelLimit.x, _VelLimit.y);
-            _Mat[index] = Matrix4x4.TRS(_Pos[index], Quaternion.LookRotation(_Vel[index]), Vector3.one);
+            _Mat[index] = float4x4.TRS(_Pos[index], quaternion.LookRotation(_Vel[index], _Up), _One);
         }
     }
 }
