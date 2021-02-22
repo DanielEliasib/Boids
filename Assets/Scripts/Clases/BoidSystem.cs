@@ -22,6 +22,8 @@ namespace AL.BoidSystem
         private NativeArray<float3> _CorrectionForces;
         private NativeArray<float4x4> _Matrices;
 
+        private NativeArray<float3> _InterestPoints;
+
         NativeArray<RaycastCommand> _RayCastCommands;
         NativeArray<RaycastHit> _ObstacleHits;
 
@@ -44,6 +46,7 @@ namespace AL.BoidSystem
         //! Global JOBS
         private GenerateRayCastCommandsJOB _GenerateRaycastJOB;
         private CollisionForceJOB _CollisionJOB;
+        private BoidAdditionalForcesJOB _AdditionalForcesJOB;
         private BoidAlignJOB _AlignJOB;
         private BoidCohesionJOB _CohesionJOB;
         private BoidSeparationJOB _SeparationJOB;
@@ -72,6 +75,8 @@ namespace AL.BoidSystem
             _OldVelocities.Dispose();
             _CorrectionForces.Dispose();
             _Matrices.Dispose();
+
+            _InterestPoints.Dispose();
 
             _RayCastCommands.Dispose();
             _SimCubeCenters.Dispose();
@@ -116,6 +121,7 @@ namespace AL.BoidSystem
             _Velocities = new NativeArray<float3>(n, Allocator.Persistent);
             _OldPositions = new NativeArray<float3>(n, Allocator.Persistent);
             _OldVelocities = new NativeArray<float3>(n, Allocator.Persistent);
+            _InterestPoints = new NativeArray<float3>(1, Allocator.Persistent);
 
             _CorrectionForces = new NativeArray<float3>(n, Allocator.Persistent);
             _Matrices = new NativeArray<float4x4>(n, Allocator.Persistent);
@@ -162,6 +168,14 @@ namespace AL.BoidSystem
                 _NumberOfRays = _NRays
             };
 
+            _AdditionalForcesJOB = new BoidAdditionalForcesJOB()
+            {
+                _CorrectionForce = _CorrectionForces,
+                _InterestPoints = _InterestPoints,
+                _OldPosition = _OldPositions,
+                _OldVelocity = _OldVelocities
+            };
+
             _AlignJOB = new BoidAlignJOB()
             {
                 _BoidToGridMap = _BoidToGridMap,
@@ -198,6 +212,8 @@ namespace AL.BoidSystem
                 _Velocity = _Velocities,
                 deltaTime = 0
             };
+
+            _InterestPoints[0] = float3.zero;
 
             _InitJob.Schedule(n, 8).Complete();
             _DirectionsJOB.Schedule(_NRays, 8).Complete();
@@ -244,6 +260,10 @@ namespace AL.BoidSystem
             _AlignJOB._OldVelocity = _OldVelocities;
             JobHandle alignBoidsHandle = _AlignJOB.Schedule(_NBoids, 8, hashBoidsHandle);
 
+            _AdditionalForcesJOB._OldPosition = _OldPositions;
+            _AdditionalForcesJOB._OldVelocity = _OldVelocities;
+            JobHandle additionalHandle = _AdditionalForcesJOB.Schedule(_NBoids, 8);
+
             _CohesionJOB._OldPosition = _OldPositions;
             _CohesionJOB._OldVelocity = _OldVelocities;
             JobHandle cohesionBoidHandle = _CohesionJOB.Schedule(_NBoids, 8, hashBoidsHandle);
@@ -262,7 +282,7 @@ namespace AL.BoidSystem
             _UpdateJOB._OldVelocity = _OldVelocities;
             _UpdateJOB._Position = _Positions;
             _UpdateJOB._Velocity = _Velocities;
-            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 8, JobHandle.CombineDependencies(collisionHandle, combinedHandle));
+            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 8, JobHandle.CombineDependencies(collisionHandle, additionalHandle, combinedHandle));
 
             updateHandle.Complete();
 
