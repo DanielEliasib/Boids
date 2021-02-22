@@ -4,6 +4,7 @@ using UnityEngine;
 
 using AL.BoidSystem;
 using Unity.Mathematics;
+using Unity.Jobs;
 
 using Unity.Collections;
 
@@ -38,6 +39,7 @@ public class BoidManager : MonoBehaviour
 
     private NativeArray<float4x4> _BoidMatrices;
     private ComputeBuffer _MatrixBuffer;
+    private JobHandle _SimulationHandle;
 
     // Start is called before the first frame update
     void Start()
@@ -63,13 +65,15 @@ public class BoidManager : MonoBehaviour
 
         _BoidMaterial.SetBuffer(matricesId, _MatrixBuffer);
         _Init = true;
+
+        _SimulationHandle = _SimulationHandle = _System.ScheduleSimulation();
     }
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
         UpdateOptionsValues();
-        _System.UpdateSystem();
+        _System.UpdateValues(Time.fixedDeltaTime);
 
         Debug.Log($"Matrices: {_BoidMatrices.Length}");
         _MatrixBuffer.SetData(_BoidMatrices);
@@ -77,6 +81,12 @@ public class BoidManager : MonoBehaviour
         Graphics.DrawMeshInstancedProcedural(_BoidMesh, 0, _BoidMaterial, new Bounds(_AreaCenter, _AreaSize), _BoidMatrices.Length);
 
         //Debug.Log($"Test: {_PointRederer.aliveParticleCount}");
+    }
+
+    private void Update()
+    {
+        if (_SimulationHandle.IsCompleted)
+            _SimulationHandle = _System.ScheduleSimulation();
     }
 
     private void UpdateOptionsValues()

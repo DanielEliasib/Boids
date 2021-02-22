@@ -13,11 +13,14 @@ namespace AL.BoidSystem
     public unsafe class BoidSystem
     {
         //! Main Boid Data Holders
-        private NativeArray<float3> _Positions;
-        private NativeArray<float3> _Velocities;
+        private NativeArray<float3> _FuturePositions;
+        private NativeArray<float3> _FutureVelocities;
 
         private NativeArray<float3> _OldPositions;
         private NativeArray<float3> _OldVelocities;
+
+        private NativeArray<float3> _CurrentPositions;
+        private NativeArray<float3> _CurrentVelocities;
 
         private NativeArray<float3> _LocalPositions;
         private NativeArray<float3> _LocalVelocities;
@@ -77,10 +80,12 @@ namespace AL.BoidSystem
 
         public void Dispose()
         {
-            _Positions.Dispose();
+            _FuturePositions.Dispose();
             _OldPositions.Dispose();
-            _Velocities.Dispose();
+            _FutureVelocities.Dispose();
             _OldVelocities.Dispose();
+            _CurrentPositions.Dispose();
+            _CurrentVelocities.Dispose();
             _CorrectionForces.Dispose();
             _Matrices.Dispose();
 
@@ -132,10 +137,12 @@ namespace AL.BoidSystem
             GenerateSimulationWalls();
 
             //! Initialize data collections
-            _Positions = new NativeArray<float3>(n, Allocator.Persistent);
-            _Velocities = new NativeArray<float3>(n, Allocator.Persistent);
+            _FuturePositions = new NativeArray<float3>(n, Allocator.Persistent);
+            _FutureVelocities = new NativeArray<float3>(n, Allocator.Persistent);
             _OldPositions = new NativeArray<float3>(n, Allocator.Persistent);
             _OldVelocities = new NativeArray<float3>(n, Allocator.Persistent);
+            _CurrentPositions = new NativeArray<float3>(n, Allocator.Persistent);
+            _CurrentVelocities = new NativeArray<float3>(n, Allocator.Persistent);
 
             _LocalPositions = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
             _LocalVelocities = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
@@ -154,8 +161,8 @@ namespace AL.BoidSystem
 
             InitBoidsJOB _InitJob = new InitBoidsJOB()
             {
-                _Pos = _Positions,
-                _Vel = _Velocities,
+                _Pos = _FuturePositions,
+                _Vel = _FutureVelocities,
                 _Mat = _Matrices,
                 _Rand = new Unity.Mathematics.Random(randSeed),
                 _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z)*0.45f,
@@ -249,8 +256,8 @@ namespace AL.BoidSystem
             {
                 _CorrectionForce = _CorrectionForces,
                 _TransMatrix = _Matrices,
-                _Position = _Positions,
-                _Velocity = _Velocities,
+                _Position = _FuturePositions,
+                _Velocity = _FutureVelocities,
                 deltaTime = 0
             };
 
@@ -260,16 +267,20 @@ namespace AL.BoidSystem
             _DirectionsJOB.Schedule(_NRays, 8).Complete();
         }
 
-        public void UpdateSystem()
+        public JobHandle ScheduleSimulation()
         {
+            //: This Method will schedule the simulation of new velocities.
             //! Debug
             var watch = new System.Diagnostics.Stopwatch();
             watch.Reset();
             watch.Start();
 
             //! Swapping
-            Swap(ref _OldPositions, ref _Positions);
-            Swap(ref _OldVelocities, ref _Velocities);
+            Swap(ref _OldPositions, ref _FuturePositions);
+            Swap(ref _OldVelocities, ref _FutureVelocities);
+
+            _CurrentPositions.CopyFrom(_OldPositions);
+            _CurrentVelocities.CopyFrom(_OldVelocities);
 
             _CorrectionForces.CopyFrom(_ZeroArrayBoidf3);
             _LocalPositions.CopyFrom(_ZeroArrayGridf3);
@@ -299,7 +310,7 @@ namespace AL.BoidSystem
             };
 
             // Scheduling
-            JobHandle hashBoidsHandle = _HashBoidsJOB.Schedule(_Positions.Length, 8);
+            JobHandle hashBoidsHandle = _HashBoidsJOB.Schedule(_FuturePositions.Length, 8);
 
             _LocalValuesJOB._OldPosition = _OldPositions;
             _LocalValuesJOB._OldVelocity = _OldVelocities;
@@ -324,21 +335,29 @@ namespace AL.BoidSystem
 
             JobHandle combinedHandle = JobHandle.CombineDependencies(alignBoidsHandle, cohesionBoidHandle, separationBoidHandle);
 
-            //! Update
-            _UpdateJOB._SystemOptions = _SystemOptions;
-            _UpdateJOB.deltaTime = Time.deltaTime;
-            _UpdateJOB._OldPosition = _OldPositions;
-            _UpdateJOB._OldVelocity = _OldVelocities;
-            _UpdateJOB._Position = _Positions;
-            _UpdateJOB._Velocity = _Velocities;
-            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 8, JobHandle.CombineDependencies(collisionHandle, additionalHandle, combinedHandle));
-
-            updateHandle.Complete();
-
             // Debug
             watch.Stop();
 
             Debug.Log($"TIme ellapsed: {watch.Elapsed.TotalMilliseconds}");
+
+            return JobHandle.CombineDependencies(collisionHandle, additionalHandle, combinedHandle);
+        }
+
+        public void UpdateValues(float deltaTime)
+        {
+            //! Update
+            _UpdateJOB._SystemOptions = _SystemOptions;
+            _UpdateJOB.deltaTime = deltaTime;
+            _UpdateJOB._OldPosition = _CurrentPositions;
+            _UpdateJOB._OldVelocity = _CurrentVelocities;
+            _UpdateJOB._Position = _FuturePositions;
+            _UpdateJOB._Velocity = _FutureVelocities;
+            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 8);
+
+            updateHandle.Complete();
+
+            _CurrentPositions.CopyFrom(_FuturePositions);
+            _CurrentVelocities.CopyFrom(_FutureVelocities);
         }
 
         public void GetMatrices(ref NativeArray<float4x4> matrices)
