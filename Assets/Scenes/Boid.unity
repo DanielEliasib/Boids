@@ -390,13 +390,13 @@ MonoBehaviour:
     y: 5
     z: 10
   _AreaDivitions:
-    x: 14
-    y: 14
-    z: 14
+    x: 4
+    y: 4
+    z: 4
   _BoidMesh: {fileID: 3613567641014311022, guid: ff6670da656f2504c924ab3444941e36,
     type: 3}
   _BoidMaterial: {fileID: 2100000, guid: 8e7588e1138eeb04da60793838b07b92, type: 2}
-  _DrawGrid: 0
+  _DrawGrid: 1
 --- !u!114 &201042189
 MonoBehaviour:
   m_ObjectHideFlags: 0
