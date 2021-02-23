@@ -1,7 +1,7 @@
 # Boids
 
 <p align="center">
-  <img src="./Images/Boids1.gif">
+  <img src="./Images/Boids2.gif">
 </p>
 
 Parallel implementation of Boids using the Unity Job System.
