@@ -26,7 +26,7 @@ namespace AL.BoidSystem.Jobs
             var rand = new Random((uint)((index+1)*_Rand.NextInt()));
 
             _Pos[index] = rand.NextFloat3Direction() * rand.NextFloat(0.0f, 1.0f) * _Rad;
-            _Vel[index] = rand.NextFloat3Direction() * rand.NextFloat(_VelLimit.x, _VelLimit.y)*5;
+            _Vel[index] = rand.NextFloat3Direction() * rand.NextFloat(_VelLimit.x, _VelLimit.y);
             _Mat[index] = float4x4.TRS(_Pos[index], quaternion.LookRotation(_Vel[index], _Up), _One);
         }
     }

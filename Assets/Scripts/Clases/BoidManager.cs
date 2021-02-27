@@ -41,11 +41,17 @@ public class BoidManager : MonoBehaviour
     private ComputeBuffer _MatrixBuffer;
     private JobHandle _SimulationHandle;
 
+    private System.Diagnostics.Stopwatch _Watch;
+
+    private JobHandle _UpdateHandle;
+
     // Start is called before the first frame update
     void Start()
     {
         _Init = false;
-        
+
+        _Watch = new System.Diagnostics.Stopwatch();
+
         //_NumberOfBoids = 1;
 
         _SystemOptions = new BoidSystemOptions()
@@ -66,27 +72,21 @@ public class BoidManager : MonoBehaviour
         _BoidMaterial.SetBuffer(matricesId, _MatrixBuffer);
         _Init = true;
 
-        _SimulationHandle = _SimulationHandle = _System.ScheduleSimulation();
+        //FixedUpdate();
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
         UpdateOptionsValues();
-        _System.UpdateValues(Time.fixedDeltaTime);
-
-        Debug.Log($"Matrices: {_BoidMatrices.Length}");
-        _MatrixBuffer.SetData(_BoidMatrices);
-
-        Graphics.DrawMeshInstancedProcedural(_BoidMesh, 0, _BoidMaterial, new Bounds(_AreaCenter, _AreaSize), _BoidMatrices.Length);
-
-        //Debug.Log($"Test: {_PointRederer.aliveParticleCount}");
+        _System.FixedUpdate(Time.fixedDeltaTime);
     }
 
     private void Update()
     {
-        if (_SimulationHandle.IsCompleted)
-            _SimulationHandle = _System.ScheduleSimulation();
+        //! Copy data to buffer for visualization
+        _MatrixBuffer.SetData(_BoidMatrices);
+        Graphics.DrawMeshInstancedProcedural(_BoidMesh, 0, _BoidMaterial, new Bounds(_AreaCenter, _AreaSize), _BoidMatrices.Length);
     }
 
     private void UpdateOptionsValues()

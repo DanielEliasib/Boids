@@ -14,9 +14,9 @@ namespace AL.BoidSystem.Jobs
         public NativeArray<int> _BoidToGridMap;
 
         [ReadOnly] public NativeArray<float3> _OldPos;
-        [ReadOnly]public float3 _CubeSize;
-        [ReadOnly]public int3 _Divitions;
-        [ReadOnly]public float3 _AreaSize;
+        [ReadOnly] public float3 _CubeSize;
+        [ReadOnly] public int3 _Divitions;
+        [ReadOnly] public float3 _AreaSize;
 
         public void Execute(int index)
         {

@@ -24,6 +24,12 @@ namespace AL.BoidSystem.Jobs
 
         public void Execute(int boidID)
         {
+            if (_CorrectionForce[0].x * _CorrectionForce[0].y * _CorrectionForce[0].z != 0 && boidID == 0)
+            {
+                int a = 0;
+            }
+                
+
             _Position[boidID] = _OldPosition[boidID] + _OldVelocity[boidID] * deltaTime + _CorrectionForce[boidID] * deltaTime * deltaTime * 0.5f;
             float3 tempVel = _OldVelocity[boidID] + _CorrectionForce[boidID] * deltaTime;
             float3 normalized = ClampMagnitude(ref tempVel, _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
@@ -31,7 +37,7 @@ namespace AL.BoidSystem.Jobs
             _TransMatrix[boidID] = float4x4.TRS(_Position[boidID], quaternion.LookRotation(normalized, _Up), _One);
         }
 
-        public static float3 ClampMagnitude(ref float3 v, float max, float min)
+        public static float3 ClampMagnitude(ref float3 v, float min, float max)
         {
             double sm = v.x * v.x + v.y * v.y + v.z * v.z;
             float3 normalized = math.normalize(v);

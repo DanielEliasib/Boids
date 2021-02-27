@@ -25,7 +25,7 @@ namespace AL.BoidSystem.Jobs
                 correctionForce += (_InterestPoints[i] - _OldPosition[boidID]) - _OldVelocity[boidID];
             }
 
-            _CorrectionForce[boidID] += correctionForce*0.01f;
+            _CorrectionForce[boidID] += correctionForce*0.05f;
         }
 
     }

@@ -50,7 +50,7 @@ namespace AL.BoidSystem.Jobs
                     if (math.abs(normal.x + normal.y + normal.z) <= 4 * float.Epsilon)
                     {
                         
-                        collisionForce = math.mul(_TransMatrices[boidID], new float4(_RayDirections[i], 0)).xyz*2.5f - _OldVelocity[boidID];
+                        collisionForce = (math.mul(_TransMatrices[boidID], new float4(_RayDirections[i], 0)).xyz*10 - _OldVelocity[boidID]);
                         freeFoud = true;
                         break;
                     }
