@@ -270,21 +270,21 @@ namespace AL.BoidSystem
             _DirectionsJOB.Schedule(_NRays, 8).Complete();
         }
 
-        public void FixedUpdate(float deltaTime)
+        public void FixedUpdate()
         {
             //! Debug
             var watch = new System.Diagnostics.Stopwatch();
             watch.Reset();
             watch.Start();
 
-            FullSystemUpdate(deltaTime);
+            SystemScheduling();
 
             // Debug
             watch.Stop();
             Debug.Log($"Scheduling: {watch.Elapsed.TotalMilliseconds}");
         }
 
-        private void FullSystemUpdate(float deltaTime)
+        private void SystemScheduling()
         {
             //! Swapping
             Swap(ref _OldPositions, ref _FuturePositions);
@@ -352,6 +352,16 @@ namespace AL.BoidSystem
             _UpdateDependencies[3] = cohesionBoidHandle;
             _UpdateDependencies[4] = separationBoidHandle;
 
+            simulationHandle = JobHandle.CombineDependencies(_UpdateDependencies);
+        }
+        
+        public void LateUpdae(float deltaTime)
+        {
+            UpdateSystem(deltaTime, simulationHandle);
+        }
+
+        private void UpdateSystem(float deltaTime, JobHandle scheduleHandle)
+        {
             //! Update
             _UpdateJOB._SystemOptions = _SystemOptions;
             _UpdateJOB.deltaTime = deltaTime;
@@ -360,7 +370,8 @@ namespace AL.BoidSystem
             _UpdateJOB._Position = _FuturePositions;
             _UpdateJOB._Velocity = _FutureVelocities;
             _UpdateJOB._CorrectionForce = _CorrectionForces;
-            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 64, JobHandle.CombineDependencies(_UpdateDependencies));
+
+            JobHandle updateHandle = _UpdateJOB.Schedule(_NBoids, 64, scheduleHandle);
 
             updateHandle.Complete();
         }

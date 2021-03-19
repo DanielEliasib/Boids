@@ -79,7 +79,12 @@ public class BoidManager : MonoBehaviour
     void FixedUpdate()
     {
         UpdateOptionsValues();
-        _System.FixedUpdate(Time.fixedDeltaTime);
+        _System.FixedUpdate();
+    }
+
+    private void LateUpdate()
+    {
+        _System.LateUpdae(Time.fixedDeltaTime);
     }
 
     private void Update()
