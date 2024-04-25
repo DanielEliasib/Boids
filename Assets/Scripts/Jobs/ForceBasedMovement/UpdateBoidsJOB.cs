@@ -28,11 +28,12 @@ namespace AL.BoidSystem.Jobs
             {
                 int a = 0;
             }
-                
 
             _Position[boidID] = _OldPosition[boidID] + _OldVelocity[boidID] * deltaTime + _CorrectionForce[boidID] * deltaTime * deltaTime * 0.5f;
+
             float3 tempVel = _OldVelocity[boidID] + _CorrectionForce[boidID] * deltaTime;
             float3 normalized = ClampMagnitude(ref tempVel, _SystemOptions.VelocityLimits.x, _SystemOptions.VelocityLimits.y);
+
             _Velocity[boidID] = tempVel;
             _TransMatrix[boidID] = float4x4.TRS(_Position[boidID], quaternion.LookRotation(normalized, _Up), _One);
         }

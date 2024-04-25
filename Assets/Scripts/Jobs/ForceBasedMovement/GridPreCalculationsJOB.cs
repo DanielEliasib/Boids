@@ -17,7 +17,7 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public NativeArray<float3> _OldVelocity;
 
         //! Simulation Area Data
-        [ReadOnly] public NativeMultiHashMap<int, int> _GridToBoidsMap;
+        [ReadOnly] public NativeParallelMultiHashMap<int, int> _GridToBoidsMap;
 
         public void Execute(int gridID)
         {

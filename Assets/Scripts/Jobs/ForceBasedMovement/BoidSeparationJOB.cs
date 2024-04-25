@@ -17,7 +17,7 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public NativeArray<int> _LocalCounter;
 
         //! Simulation Area Data
-        [ReadOnly] public NativeMultiHashMap<int, int> _GridToBoidsMap;
+        [ReadOnly] public NativeParallelMultiHashMap<int, int> _GridToBoidsMap;
         [ReadOnly] public NativeArray<int> _BoidToGridMap;
 
         [ReadOnly] public BoidSystemOptions _SystemOptions;

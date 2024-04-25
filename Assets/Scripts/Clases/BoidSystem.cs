@@ -34,7 +34,7 @@ namespace AL.BoidSystem
         private NativeArray<JobHandle> _UpdateDependencies;
 
         private NativeArray<float3> _RayDirections;
-        private int _NRays = 8*2;
+        private int _NRays = 8 * 2;
 
         private int _NBoids;
 
@@ -46,7 +46,7 @@ namespace AL.BoidSystem
         private GameObject _QuadWallPrefab;
 
         private NativeArray<float3> _SimCubeCenters;
-        private NativeMultiHashMap<int, int> _GridToBoidsMap;
+        private NativeParallelMultiHashMap<int, int> _GridToBoidsMap;
         private NativeArray<int> _BoidToGridMap;
 
         //! Global JOBS
@@ -78,6 +78,8 @@ namespace AL.BoidSystem
             _SystemOptions = systemOptions;
 
             _NBoids = nOfBoids;
+
+            // Fix random seed
             Initialize(_NBoids, 1587);
         }
 
@@ -103,6 +105,7 @@ namespace AL.BoidSystem
 
             _UpdateDependencies.Dispose();
 
+            // TODO: Fix
             try
             {
                 _GridToBoidsMap.Dispose();
@@ -113,7 +116,7 @@ namespace AL.BoidSystem
 
         private void InitializeSimulationGrid()
         {
-            _GridToBoidsMap = new NativeMultiHashMap<int, int>(_SimArea.NumberOfCubes*_NBoids, Allocator.Persistent);
+            _GridToBoidsMap = new NativeParallelMultiHashMap<int, int>(_SimArea.NumberOfCubes * _NBoids, Allocator.Persistent);
             _BoidToGridMap = new NativeArray<int>(_NBoids, Allocator.Persistent);
             _SimCubeCenters = new NativeArray<float3>(_SimArea.NumberOfCubes, Allocator.Persistent);
 
@@ -133,7 +136,7 @@ namespace AL.BoidSystem
             _ZeroArrayBoidf3 = new float3[n];
             _ZeroArrayBoidi1 = new int[n];
             _ZeroArrayGridf3 = new float3[_SimArea.NumberOfCubes];
-            _ZeroArrayGridi1 = new int[_SimArea.NumberOfCubes]; 
+            _ZeroArrayGridi1 = new int[_SimArea.NumberOfCubes];
 
             //! Initialize Simulation Grid
             InitializeSimulationGrid();
@@ -162,13 +165,14 @@ namespace AL.BoidSystem
 
             _UpdateDependencies = new NativeArray<JobHandle>(5, Allocator.Persistent);
 
+            // INFO: JOBS
             InitBoidsJOB _InitJob = new InitBoidsJOB()
             {
                 _Pos = _FuturePositions,
                 _Vel = _FutureVelocities,
                 _Mat = _Matrices,
                 _Rand = new Unity.Mathematics.Random(randSeed),
-                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z)*0.45f,
+                _Rad = math.min(math.min(_SimArea.Size.x, _SimArea.Size.y), _SimArea.Size.z) * 0.45f,
                 _VelLimit = _SystemOptions.VelocityLimits
             };
 
@@ -226,7 +230,7 @@ namespace AL.BoidSystem
                 _LocalVelocity = _LocalVelocities,
                 _LocalCounter = _LocalCounter,
                 _BoidToGridMap = _BoidToGridMap,
-                
+
                 _OldPosition = _OldPositions,
                 _OldVelocity = _OldVelocities
             };
@@ -238,7 +242,7 @@ namespace AL.BoidSystem
                 _LocalVelocity = _LocalVelocities,
                 _LocalCounter = _LocalCounter,
                 _BoidToGridMap = _BoidToGridMap,
-                
+
                 _OldPosition = _OldPositions,
                 _OldVelocity = _OldVelocities
             };
@@ -266,6 +270,7 @@ namespace AL.BoidSystem
 
             _InterestPoints[0] = float3.zero;
 
+            // INFO: Initialization jobs
             _InitJob.Schedule(n, 8).Complete();
             _DirectionsJOB.Schedule(_NRays, 8).Complete();
         }
@@ -286,12 +291,11 @@ namespace AL.BoidSystem
 
         private void SystemScheduling()
         {
-            //! Swapping
+            //INFO: Swapping old and future data
             Swap(ref _OldPositions, ref _FuturePositions);
             Swap(ref _OldVelocities, ref _FutureVelocities);
-            //Swap(ref _OldCorrectionForces, ref _CorrectionForces);
 
-            //: *******************************************************
+            // INFO: Clearing data
             _CorrectionForces.CopyFrom(_ZeroArrayBoidf3);
 
             _LocalPositions.CopyFrom(_ZeroArrayGridf3);
@@ -299,8 +303,11 @@ namespace AL.BoidSystem
             _LocalCounter.CopyFrom(_ZeroArrayGridi1);
 
             _BoidToGridMap.CopyFrom(_ZeroArrayBoidi1);
-            //: *******************************************************
 
+            // INFO: Jobs
+
+            // INFO: External forces
+            // Do I need to set them every time?
             _AdditionalForcesJOB._OldPosition = _OldPositions;
             _AdditionalForcesJOB._OldVelocity = _OldVelocities;
             JobHandle additionalHandle = _AdditionalForcesJOB.Schedule(_NBoids, 64);
@@ -311,7 +318,7 @@ namespace AL.BoidSystem
             JobHandle rayCastHandle = RaycastCommand.ScheduleBatch(_RayCastCommands, _ObstacleHits, 64, genCommandsHandle);
 
             _CollisionJOB._OldVelocity = _OldVelocities;
-            JobHandle collisionHandle = _CollisionJOB.Schedule(_NBoids, 64, rayCastHandle);
+            JobHandle collisionHandle = _CollisionJOB.Schedule(_NBoids, 64, JobHandle.CombineDependencies(additionalHandle, rayCastHandle));
 
             //! Boid grid hashing
             _GridToBoidsMap.Clear();
@@ -331,7 +338,7 @@ namespace AL.BoidSystem
 
             _LocalValuesJOB._OldPosition = _OldPositions;
             _LocalValuesJOB._OldVelocity = _OldVelocities;
-            JobHandle localHandle = _LocalValuesJOB.Schedule(_SimArea.NumberOfCubes, 64, hashBoidsHandle);
+            JobHandle localHandle = _LocalValuesJOB.Schedule(_SimArea.NumberOfCubes, 64, JobHandle.CombineDependencies(collisionHandle, hashBoidsHandle));
 
             _AlignJOB._OldPosition = _OldPositions;
             _AlignJOB._OldVelocity = _OldVelocities;
@@ -339,12 +346,12 @@ namespace AL.BoidSystem
 
             _CohesionJOB._OldPosition = _OldPositions;
             _CohesionJOB._OldVelocity = _OldVelocities;
-            JobHandle cohesionBoidHandle = _CohesionJOB.Schedule(_NBoids, 64, localHandle);
+            JobHandle cohesionBoidHandle = _CohesionJOB.Schedule(_NBoids, 64, alignBoidsHandle);
 
             _SeparationJOB._OldPosition = _OldPositions;
             _SeparationJOB._OldVelocity = _OldVelocities;
             _SeparationJOB._SystemOptions = _SystemOptions;
-            JobHandle separationBoidHandle = _SeparationJOB.Schedule(_NBoids, 64, localHandle);
+            JobHandle separationBoidHandle = _SeparationJOB.Schedule(_NBoids, 64, cohesionBoidHandle);
 
             _UpdateDependencies[0] = collisionHandle;
             _UpdateDependencies[1] = additionalHandle;
@@ -354,8 +361,8 @@ namespace AL.BoidSystem
 
             simulationHandle = JobHandle.CombineDependencies(_UpdateDependencies);
         }
-        
-        public void LateUpdae(float deltaTime)
+
+        public void LateUpdate(float deltaTime)
         {
             UpdateSystem(deltaTime, simulationHandle);
         }
@@ -455,7 +462,7 @@ namespace AL.BoidSystem
             if (drawUsedCubes)
             {
                 float3 cubeSize = _SimArea.InnerCubeSize;
-                
+
 
                 for (int i = 0; i < _SimCubeCenters.Length; i++)
                 {
@@ -469,7 +476,7 @@ namespace AL.BoidSystem
                         Gizmos.color = Color.white;
                         Gizmos.DrawRay(_LocalPositions[i], _LocalVelocities[i]);
                     }
-                    
+
                 }
             }
 

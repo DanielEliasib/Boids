@@ -27,9 +27,9 @@ namespace AL.BoidSystem.Jobs
         {
             int gridKey = _BoidToGridMap[boidID];
 
-            if(_LocalCounter[gridKey] > 1)
+            if (_LocalCounter[gridKey] > 1)
             {
-                float3 localVelocity = _LocalVelocity[gridKey]* _LocalCounter[gridKey] - _OldVelocity[boidID];
+                float3 localVelocity = _LocalVelocity[gridKey] * _LocalCounter[gridKey] - _OldVelocity[boidID];
                 localVelocity /= (_LocalCounter[gridKey] - 1);
 
                 _CorrectionForce[boidID] += localVelocity - _OldVelocity[boidID];

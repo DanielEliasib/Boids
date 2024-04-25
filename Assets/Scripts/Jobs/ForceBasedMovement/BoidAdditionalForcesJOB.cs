@@ -15,18 +15,17 @@ namespace AL.BoidSystem.Jobs
         [ReadOnly] public NativeArray<float3> _OldPosition;
         [ReadOnly] public NativeArray<float3> _OldVelocity;
         [ReadOnly] public NativeArray<float3> _InterestPoints;
-        
+
         public void Execute(int boidID)
         {
             float3 correctionForce = float3.zero;
 
-            for(int i = 0; i < _InterestPoints.Length; i++)
+            for (int i = 0; i < _InterestPoints.Length; i++)
             {
                 correctionForce += (_InterestPoints[i] - _OldPosition[boidID]) - _OldVelocity[boidID];
             }
 
-            _CorrectionForce[boidID] += correctionForce*0.05f;
+            _CorrectionForce[boidID] += correctionForce * 0.05f;
         }
-
     }
 }

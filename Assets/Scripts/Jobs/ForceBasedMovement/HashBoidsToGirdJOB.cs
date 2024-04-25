@@ -10,7 +10,7 @@ namespace AL.BoidSystem.Jobs
 {
     public struct HashBoidsToGirdJOB : IJobParallelFor
     {
-        public NativeMultiHashMap<int, int>.ParallelWriter _GridToBoidMap;
+        public NativeParallelMultiHashMap<int, int>.ParallelWriter _GridToBoidMap;
         public NativeArray<int> _BoidToGridMap;
 
         [ReadOnly] public NativeArray<float3> _OldPos;

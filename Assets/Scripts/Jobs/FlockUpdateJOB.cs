@@ -20,7 +20,7 @@ namespace AL.BoidSystem.Jobs
         [NativeDisableParallelForRestriction] public NativeArray<float3> _NewVel;
 
         //! Simulation Area Data
-        [ReadOnly] public NativeMultiHashMap<int, int> _GridToBoidsMap;
+        [ReadOnly] public NativeParallelMultiHashMap<int, int> _GridToBoidsMap;
         [ReadOnly] public SimulationArea _SimArea;
 
         //! Obstacle Data

@@ -11,7 +11,7 @@ using Unity.Collections;
 public class BoidManager : MonoBehaviour
 {
     [Header("Boids options"), Tooltip("For better results use number divisible by 8.")]
-    [SerializeField] int _NumberOfBoids = 8*300;
+    [SerializeField] int _NumberOfBoids = 8 * 300;
     [SerializeField] float2 _VelocityLimits = new float2(0.1f, 5.0f);
     [SerializeField] float _ObstacleVision = 1.0f;
     [SerializeField] float _ChangeRate = 0.1f;
@@ -24,7 +24,7 @@ public class BoidManager : MonoBehaviour
     [Header("Simulation Area Options")]
     [SerializeField] float3 _AreaCenter = float3.zero;
     [SerializeField] float3 _AreaSize = new float3(5, 5, 5);
-    [SerializeField] int3 _AreaDivitions = new int3(10,10,10);
+    [SerializeField] int3 _AreaDivitions = new int3(10, 10, 10);
 
     [Header("Render Options")]
     [SerializeField] private Mesh _BoidMesh;
@@ -33,17 +33,19 @@ public class BoidManager : MonoBehaviour
     [Header("Debug info")]
     [SerializeField] bool _DrawGrid = false;
 
-    static readonly int matricesId = Shader.PropertyToID("_Matrices");
     private BoidSystem _System;
     private bool _Init;
 
+    // Shader property ID
+    static readonly int matricesId = Shader.PropertyToID("_Matrices");
     private NativeArray<float4x4> _BoidMatrices;
     private ComputeBuffer _MatrixBuffer;
+
+    // Job handles
     private JobHandle _SimulationHandle;
+    private JobHandle _UpdateHandle;
 
     private System.Diagnostics.Stopwatch _Watch;
-
-    private JobHandle _UpdateHandle;
 
     // Start is called before the first frame update
     void Start()
@@ -51,8 +53,6 @@ public class BoidManager : MonoBehaviour
         _Init = false;
 
         _Watch = new System.Diagnostics.Stopwatch();
-
-        //_NumberOfBoids = 1;
 
         _SystemOptions = new BoidSystemOptions()
         {
@@ -84,7 +84,7 @@ public class BoidManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        _System.LateUpdae(Time.fixedDeltaTime);
+        _System.LateUpdate(Time.fixedDeltaTime);
     }
 
     private void Update()
@@ -106,8 +106,6 @@ public class BoidManager : MonoBehaviour
         _System.UpdateSystemOptions(ref _SystemOptions);
     }
 
-    
-
     private void OnDestroy()
     {
         _System?.Dispose();
@@ -120,11 +118,11 @@ public class BoidManager : MonoBehaviour
         {
             _System.DrawSystem();
             _System.DrawSimulationArea(_DrawGrid);
-        }else if (_DrawGrid)
+        }
+        else if (_DrawGrid)
         {
             Gizmos.color = Color.green;
             Gizmos.DrawWireCube(_AreaCenter, _AreaSize);
-
         }
     }
 }
